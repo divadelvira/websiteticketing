@@ -26,6 +26,7 @@ import {
   Shield,
   RefreshCw
 } from 'lucide-react';
+import { useLanguage } from '../contexts/LanguageContext';
 
 interface VendorPortalProps {
   tickets: Ticket[];
@@ -44,6 +45,8 @@ export default function VendorPortal({
   onCancelTicket,
   simulatedTime
 }: VendorPortalProps) {
+  const { language } = useLanguage();
+
   // Navigation tabs
   const [activeTab, setActiveTab] = useState<TabType>('beranda');
 
