@@ -1,0 +1,6 @@
+{
+  "name": "Warehouse Ticketing Triatra",
+  "description": "Portal Manajemen Penjadwalan Pengiriman PT Triatra Sinergia Pratama.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
