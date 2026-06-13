@@ -1,10 +1,11 @@
 import React, { useState, useMemo } from 'react';
 import { Ticket, DELIVERY_SESSIONS, ParkingSlots, DeliverySession } from '../types';
-import { 
   getMinBookingDateStr, 
   formatIndoDate, 
   isRescheduleAllowed, 
-  generateTicketId 
+  generateTicketId,
+  allocateBooking,
+  SESSION_LIMITS
 } from '../utils/mockData';
 import { 
   Search, 
@@ -73,7 +74,6 @@ export default function VendorPortal({
   // Date and session choices
   const [deliveryDate, setDeliveryDate] = useState('');
   const [session, setSession] = useState<DeliverySession>('08:00-09:00');
-  const [slotCode, setSlotCode] = useState<string | null>(null);
   const [bookingError, setBookingError] = useState<string | null>(null);
   const [latestCreatedTicket, setLatestCreatedTicket] = useState<Ticket | null>(null);
 
@@ -130,8 +130,7 @@ export default function VendorPortal({
   };
 
   const occupiedSlotsForBooking = useMemo(() => {
-    if (!deliveryDate) return [];
-    return getOccupiedSlots(deliveryDate, session);
+    return [];
   }, [deliveryDate, session, tickets]);
 
   const occupiedSlotsForReschedule = useMemo(() => {
@@ -145,30 +144,37 @@ export default function VendorPortal({
     setBookingError(null);
 
     // Validate inputs
-    if (!email || !vendorName || !picName || !poAmount || !koliAmount || !itemAmount || !quantityAmount || !deliveryDate || !session || !slotCode) {
-      setBookingError('Isian formulir tidak lengkap. Harap pastikan semua data dan slot parkir telah dipilih.');
+    if (!email || !vendorName || !picName || !poAmount || !koliAmount || !itemAmount || !quantityAmount || !deliveryDate || !session) {
+      setBookingError(language === 'en' ? 'Incomplete form. Please ensure all data is filled.' : 'Isian formulir tidak lengkap. Harap pastikan semua data telah diisi.');
       return;
     }
 
-    // Double check date validation: must be at least H+2
     const minTimeStr = getMinBookingDateStr(simulatedTime);
     if (deliveryDate < minTimeStr) {
-      setBookingError(`Tanggal pengiriman tidak valid. Harus minimal H+2 dari hari ini (Semenjak tanggal ${formatIndoDate(minTimeStr)}).`);
+      setBookingError(language === 'en' ? `Invalid delivery date. Must be at least D+2 (Since ${formatIndoDate(minTimeStr, language)}).` : `Tanggal pengiriman tidak valid. Harus minimal H+2 dari hari ini (Semenjak tanggal ${formatIndoDate(minTimeStr, language)}).`);
       return;
     }
 
-    // Double check slot availability
-    const taken = getOccupiedSlots(deliveryDate, session);
-    if (taken.includes(slotCode)) {
-      setBookingError('Slot parkir yang dipilih sudah dipesan oleh vendor lain. Silakan pilih slot lain yang tersedia.');
+    const allocResult = allocateBooking(
+      tickets,
+      deliveryDate,
+      session,
+      Number(quantityAmount),
+      Number(itemAmount),
+      Number(koliAmount),
+      Number(poAmount)
+    );
+
+    if (!allocResult.success || !allocResult.allocations || allocResult.allocations.length === 0) {
+      setBookingError(language === 'en' ? allocResult.messageEn! : allocResult.message!);
       return;
     }
 
     const sessionIndex = DELIVERY_SESSIONS.findIndex(s => s.key === session);
-    
-    // Create new Ticket
+    const firstSlot = allocResult.allocations[0].slotCode;
+
     const newTicket: Ticket = {
-      id: generateTicketId(deliveryDate, sessionIndex, slotCode),
+      id: generateTicketId(deliveryDate, sessionIndex, firstSlot),
       email,
       vendorName,
       picName,
@@ -177,8 +183,9 @@ export default function VendorPortal({
       itemAmount: Number(itemAmount),
       quantityAmount: Number(quantityAmount),
       deliveryDate,
-      session,
-      slotCode,
+      session: allocResult.allocations[0].session,
+      slotCode: firstSlot,
+      bookedSlots: allocResult.allocations,
       createdAt: new Date().toISOString(),
       status: 'ACTIVE'
     };
@@ -194,7 +201,6 @@ export default function VendorPortal({
     setKoliAmount('');
     setItemAmount('');
     setQuantityAmount('');
-    setSlotCode(null);
   };
 
   // Open reschedule wizard
@@ -223,22 +229,34 @@ export default function VendorPortal({
     const originalTicket = tickets.find(t => t.id === reschedulingId);
     if (!originalTicket) return;
 
-    if (!rescheduleDate || !rescheduleSession || !rescheduleSlot) {
-      setRescheduleError('Harap tentukan tanggal, sesi, dan slot baru untuk penjadwalan.');
+    if (!rescheduleDate || !rescheduleSession) {
+      setRescheduleError(language === 'en' ? 'Please specify a new date and session.' : 'Harap tentukan tanggal dan sesi baru untuk penjadwalan.');
       return;
     }
 
     // Validate next date (min H+2)
     const minTimeStr = getMinBookingDateStr(simulatedTime);
     if (rescheduleDate < minTimeStr) {
-      setRescheduleError(`Tanggal reschedule tidak valid. Harus minimal H+2 dari hari ini (${formatIndoDate(minTimeStr)}).`);
+      setRescheduleError(language === 'en' ? `Invalid date. Must be at least D+2 (${formatIndoDate(minTimeStr, language)}).` : `Tanggal reschedule tidak valid. Harus minimal H+2 dari hari ini (${formatIndoDate(minTimeStr, language)}).`);
       return;
     }
 
-    // Verify slots
-    const taken = getOccupiedSlots(rescheduleDate, rescheduleSession);
-    if (taken.includes(rescheduleSlot)) {
-      setRescheduleError('Slot parkir baru yang dipilih sudah dipesan oleh vendor lain. Silakan pilih slot lain.');
+    // Since it's a reschedule, we temporarily remove the old ticket's slots from the pool
+    // to calculate if the new timeslot can fit the ticket's requirements.
+    const tempTickets = tickets.filter(t => t.id !== reschedulingId);
+
+    const allocResult = allocateBooking(
+      tempTickets,
+      rescheduleDate,
+      rescheduleSession,
+      originalTicket.quantityAmount,
+      originalTicket.itemAmount,
+      originalTicket.koliAmount,
+      originalTicket.poAmount
+    );
+
+    if (!allocResult.success || !allocResult.allocations || allocResult.allocations.length === 0) {
+      setRescheduleError(language === 'en' ? allocResult.messageEn! : allocResult.message!);
       return;
     }
 
@@ -246,8 +264,9 @@ export default function VendorPortal({
     const updatedTicket: Ticket = {
       ...originalTicket,
       deliveryDate: rescheduleDate,
-      session: rescheduleSession,
-      slotCode: rescheduleSlot,
+      session: allocResult.allocations[0].session,
+      slotCode: allocResult.allocations[0].slotCode,
+      bookedSlots: allocResult.allocations,
       createdAt: new Date().toISOString() // refresh timestamp
     };
 
@@ -256,7 +275,6 @@ export default function VendorPortal({
     setTimeout(() => {
       setReschedulingId(null);
       setRescheduleSuccess(false);
-      // Select rescheduled ticket to show results
       setSelectedTicketId(updatedTicket.id);
     }, 1500);
   };
@@ -281,10 +299,10 @@ export default function VendorPortal({
             PORTAL VENDOR PUBLIK
           </span>
           <h1 className="text-3xl font-extrabold tracking-tight mt-3 text-slate-100">
-            Booking & Manajemen Tiket Parkir Gudang
+            {language === 'en' ? 'Warehouse Parking Booking & Management' : 'Booking & Manajemen Tiket Parkir Gudang'}
           </h1>
           <p className="mt-2 text-slate-300 text-sm leading-relaxed">
-            Selamat datang di sistem manajemen penjadwalan logistik gudang utama. Masukkan data muatan, jadwalkan kedatangan Anda minimal <strong>H+2</strong> ke depan, dan dapatkan alokasi dock parkir instan dengan aman.
+            {language === 'en' ? 'Welcome to the main logistics scheduling system. Enter your load data, schedule your arrival at least D+2 in advance, and instantly secure your parking dock.' : 'Selamat datang di sistem manajemen penjadwalan logistik gudang utama. Masukkan data muatan, jadwalkan kedatangan Anda minimal H+2 ke depan, dan dapatkan alokasi dock parkir instan dengan aman.'}
           </p>
           <div className="mt-5 flex gap-3 flex-wrap">
             <button
@@ -326,10 +344,10 @@ export default function VendorPortal({
             <div className="bg-white rounded-3xl p-6 shadow-sm border border-slate-100">
               <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2 mb-3">
                 <Search className="w-5 h-5 text-indigo-600" />
-                Pencarian Tiket Pengiriman Vendor
+                {language === 'en' ? 'Vendor Delivery Ticket Search' : 'Pencarian Tiket Pengiriman Vendor'}
               </h2>
               <p className="text-xs text-slate-500 mb-4">
-                Cari tiket Anda menggunakan <strong>Kode Tiket</strong> (contoh: <code>TKT-20260615...</code>) atau <strong>Email Terdaftar</strong> untuk melihat detail, melakukan penjadwalan ulang, atau membatalkan kedatangan.
+                {language === 'en' ? 'Search your tickets using Ticket Code or Registered Email to view details, reschedule, or cancel your arrival.' : 'Cari tiket Anda menggunakan Kode Tiket atau Email Terdaftar untuk melihat detail, melakukan penjadwalan ulang, atau membatalkan kedatangan.'}
               </p>
               
               <form onSubmit={handleSearch} className="flex gap-2">
@@ -412,7 +430,7 @@ export default function VendorPortal({
                                 ? 'bg-emerald-100 text-emerald-800' 
                                 : 'bg-rose-100 text-rose-800'
                             }`}>
-                              {tk.status === 'ACTIVE' ? 'Aktif' : 'Dibatalkan'}
+                              {tk.status === 'ACTIVE' ? (language === 'en' ? 'Active' : 'Aktif') : (language === 'en' ? 'Cancelled' : 'Dibatalkan')}
                             </span>
                           </div>
                           <div className="text-xs text-slate-600 font-medium">
@@ -423,17 +441,17 @@ export default function VendorPortal({
                             <span>{formatIndoDate(tk.deliveryDate)}</span>
                             <span className="text-slate-300">&bull;</span>
                             <Clock className="w-3.5 h-3.5 text-slate-400" />
-                            <span>Sesi: {tk.session}</span>
+                            <span>{language === 'en' ? 'Session:' : 'Sesi:'} {tk.session}</span>
                             <span className="text-slate-300">&bull;</span>
-                            <span className="bg-slate-200 text-slate-700 px-1.5 py-0.2 rounded font-bold font-mono text-[10px]">Slot {tk.slotCode}</span>
+                            <span className="bg-slate-200 text-slate-700 px-1.5 py-0.2 rounded font-bold font-mono text-[10px]">{language === 'en' ? 'Slot' : 'Slot'} {tk.slotCode}</span>
                           </div>
                         </div>
 
                         <div className="text-right shrink-0">
-                          <p className="text-[10px] text-slate-400 uppercase font-bold">TOTAL MUATAN</p>
+                          <p className="text-[10px] text-slate-400 uppercase font-bold">{language === 'en' ? 'TOTAL LOAD' : 'TOTAL MUATAN'}</p>
                           <p className="text-sm font-bold text-slate-800">{tk.quantityAmount} Qty <span className="text-slate-500 text-xs font-normal">({tk.koliAmount} Koli)</span></p>
                           <span className="text-xs text-indigo-600 font-semibold hover:underline inline-flex items-center gap-0.5 mt-1">
-                            Lihat Detail &rarr;
+                            {language === 'en' ? 'View Detail \u2192' : 'Lihat Detail \u2192'}
                           </span>
                         </div>
                       </div>
@@ -450,7 +468,7 @@ export default function VendorPortal({
                 {/* Header detail */}
                 <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 pb-4 border-b border-slate-100">
                   <div>
-                    <span className="text-xs font-bold text-slate-400 uppercase tracking-widest block">Detail Dokumen Pengiriman</span>
+                    <span className="text-xs font-bold text-slate-400 uppercase tracking-widest block">{language === 'en' ? 'Delivery Document Detail' : 'Detail Dokumen Pengiriman'}</span>
                     <h3 className="font-mono text-lg font-bold text-slate-900 mt-1 select-all select-none">
                       {activeDetailedTicket.id}
                     </h3>
@@ -462,24 +480,27 @@ export default function VendorPortal({
                       id="btn-print-ticket"
                       onClick={() => window.print()}
                       className="bg-slate-100 hover:bg-slate-200 text-slate-700 px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer"
-                      title="Cetak Tiket Pengiriman"
+                      title={language === 'en' ? 'Print Delivery Ticket' : 'Cetak Tiket Pengiriman'}
                     >
                       <Printer className="w-4 h-4" />
-                      <span>Cetak PDF</span>
+                      <span>{language === 'en' ? 'Print PDF' : 'Cetak PDF'}</span>
                     </button>
                     
                     {activeDetailedTicket.status === 'ACTIVE' && (
                       <button
                         id="btn-cancel-ticket"
                         onClick={() => {
-                          if (confirm(`Apakah Anda yakin ingin membatalkan Booking Tiket Pengiriman ini?\nTindakan ini bersifat final dan slot parkir ${activeDetailedTicket.slotCode} akan dikembalikan ke publik.`)) {
+                          const confirmMsg = language === 'en' 
+                            ? `Are you sure you want to cancel this Delivery Ticket Booking?\nThis action is final and slot ${activeDetailedTicket.slotCode} will be released back to the public pool.` 
+                            : `Apakah Anda yakin ingin membatalkan Booking Tiket Pengiriman ini?\nTindakan ini bersifat final dan slot parkir ${activeDetailedTicket.slotCode} akan dikembalikan ke publik.`;
+                          if (confirm(confirmMsg)) {
                             onCancelTicket(activeDetailedTicket.id);
-                            alert('Tiket berhasil dibatalkan.');
+                            alert(language === 'en' ? 'Ticket cancelled successfully.' : 'Tiket berhasil dibatalkan.');
                           }
                         }}
                         className="bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 px-3.5 py-2 rounded-xl text-xs font-bold transition cursor-pointer"
                       >
-                        Batalkan Tiket
+                        {language === 'en' ? 'Cancel Ticket' : 'Batalkan Tiket'}
                       </button>
                     )}
                   </div>
@@ -488,49 +509,49 @@ export default function VendorPortal({
                 {/* Main cargo metrics */}
                 <div className="bg-slate-50 rounded-2xl p-4.5 grid grid-cols-2 sm:grid-cols-4 gap-4">
                   <div className="border-r border-slate-200 last:border-r-0 pr-2">
-                    <p className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">Jumlah PO</p>
+                    <p className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">{language === 'en' ? 'Total PO' : 'Jumlah PO'}</p>
                     <p className="text-lg font-black text-slate-800">{activeDetailedTicket.poAmount}</p>
-                    <span className="text-[10px] text-slate-400 font-medium">Dokumen PO</span>
+                    <span className="text-[10px] text-slate-400 font-medium">{language === 'en' ? 'PO Documents' : 'Dokumen PO'}</span>
                   </div>
                   <div className="border-r border-slate-200 last:border-r-0 pr-2 pl-1">
-                    <p className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">Jumlah Koli</p>
+                    <p className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">{language === 'en' ? 'Total Boxes' : 'Jumlah Koli'}</p>
                     <p className="text-lg font-black text-slate-800">{activeDetailedTicket.koliAmount}</p>
-                    <span className="text-[10px] text-slate-400 font-medium">Kotak / Dus</span>
+                    <span className="text-[10px] text-slate-400 font-medium">{language === 'en' ? 'Boxes' : 'Kotak / Dus'}</span>
                   </div>
                   <div className="border-r border-slate-200 last:border-r-0 pr-2 pl-1">
-                    <p className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">Jumlah Item</p>
+                    <p className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">{language === 'en' ? 'Total Items' : 'Jumlah Item'}</p>
                     <p className="text-lg font-black text-slate-800">{activeDetailedTicket.itemAmount}</p>
-                    <span className="text-[10px] text-slate-400 font-medium">Jenis SKUs</span>
+                    <span className="text-[10px] text-slate-400 font-medium">{language === 'en' ? 'SKUs' : 'Jenis SKUs'}</span>
                   </div>
                   <div className="pl-1">
-                    <p className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">Total Quantity</p>
+                    <p className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">{language === 'en' ? 'Total Quantity' : 'Total Quantity'}</p>
                     <p className="text-lg font-black text-slate-900">{activeDetailedTicket.quantityAmount}</p>
-                    <span className="text-[10px] text-slate-400 font-medium">Pcs / Unit</span>
+                    <span className="text-[10px] text-slate-400 font-medium">{language === 'en' ? 'Pcs / Units' : 'Pcs / Unit'}</span>
                   </div>
                 </div>
 
                 {/* Booking details info */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
                   <div className="space-y-2.5">
-                    <h4 className="font-bold text-slate-800 tracking-wider uppercase text-[10px]">Informasi Pengirim (Vendor)</h4>
+                    <h4 className="font-bold text-slate-800 tracking-wider uppercase text-[10px]">{language === 'en' ? 'Vendor Information' : 'Informasi Pengirim (Vendor)'}</h4>
                     <div className="flex items-center gap-2.5 text-slate-755 font-medium">
                       <User className="w-4 h-4 text-slate-400 shrink-0" />
                       <div>
-                        <p className="text-[10px] text-slate-400 font-normal">Perusahaan Vendor</p>
+                        <p className="text-[10px] text-slate-400 font-normal">{language === 'en' ? 'Vendor Company' : 'Perusahaan Vendor'}</p>
                         <p className="text-slate-800 font-semibold">{activeDetailedTicket.vendorName}</p>
                       </div>
                     </div>
                     <div className="flex items-center gap-2.5 text-slate-755 font-medium">
                       <Shield className="w-4 h-4 text-slate-400 shrink-0" />
                       <div>
-                        <p className="text-[10px] text-slate-400 font-normal">Nama PIC Lapangan</p>
+                        <p className="text-[10px] text-slate-400 font-normal">{language === 'en' ? 'PIC Name' : 'Nama PIC Lapangan'}</p>
                         <p className="text-slate-800 font-semibold">{activeDetailedTicket.picName}</p>
                       </div>
                     </div>
                     <div className="flex items-center gap-2.5 text-slate-755 font-medium">
                       <Mail className="w-4 h-4 text-slate-400 shrink-0" />
                       <div>
-                        <p className="text-[10px] text-slate-400 font-normal">Email Kontak</p>
+                        <p className="text-[10px] text-slate-400 font-normal">{language === 'en' ? 'Contact Email' : 'Email Kontak'}</p>
                         <p className="text-slate-800 font-mono">{activeDetailedTicket.email}</p>
                       </div>
                     </div>
@@ -539,26 +560,26 @@ export default function VendorPortal({
                   <div className="space-y-2.5 bg-indigo-50/20 border border-indigo-500/10 rounded-2xl p-4">
                     <h4 className="font-bold text-indigo-900 tracking-wider uppercase text-[10px] flex items-center gap-1">
                       <MapPin className="w-3.5 h-3.5 text-indigo-600" />
-                      ALOKASI JADWAL kedatangan
+                      {language === 'en' ? 'ARRIVAL SCHEDULE ALLOCATION' : 'ALOKASI JADWAL KEDATANGAN'}
                     </h4>
                     
                     <div>
-                      <p className="text-[10px] text-slate-400 font-normal">Tanggal Kedatangan</p>
-                      <p className="text-slate-800 font-bold text-sm">{formatIndoDate(activeDetailedTicket.deliveryDate)}</p>
+                      <p className="text-[10px] text-slate-400 font-normal">{language === 'en' ? 'Arrival Date' : 'Tanggal Kedatangan'}</p>
+                      <p className="text-slate-800 font-bold text-sm">{formatIndoDate(activeDetailedTicket.deliveryDate, language)}</p>
                     </div>
                     
                     <div>
-                      <p className="text-[10px] text-slate-400 font-normal">Sesi Jendela Waktu</p>
+                      <p className="text-[10px] text-slate-400 font-normal">{language === 'en' ? 'Time Window' : 'Sesi Jendela Waktu'}</p>
                       <p className="text-slate-800 font-bold text-sm">{activeDetailedTicket.session} WIB</p>
                     </div>
 
                     <div>
-                      <p className="text-[10px] text-slate-400 font-normal">Lokasi Slot Terpilih</p>
+                      <p className="text-[10px] text-slate-400 font-normal">{language === 'en' ? 'Selected Slot' : 'Lokasi Slot Terpilih'}</p>
                       <div className="flex items-center gap-1.5 mt-0.5">
                         <span className="bg-indigo-600 text-white font-mono font-black px-2.5 py-1 rounded text-xs select-all">
-                          SLOT {activeDetailedTicket.slotCode}
+                          {language === 'en' ? 'SLOT' : 'SLOT'} {activeDetailedTicket.slotCode}
                         </span>
-                        <span className="text-[10px] text-slate-500 italic font-medium">(Bawa tiket ini saat check-in)</span>
+                        <span className="text-[10px] text-slate-500 italic font-medium">{language === 'en' ? '(Bring this for check-in)' : '(Bawa tiket ini saat check-in)'}</span>
                       </div>
                     </div>
                   </div>
@@ -570,10 +591,10 @@ export default function VendorPortal({
                     <div className="text-xs">
                       <p className="font-bold text-slate-800 flex items-center gap-1.5">
                         <RefreshCw className="w-4 h-4 text-emerald-600" />
-                        Butuh Penjadwalan Ulang (Reschedule)?
+                        {language === 'en' ? 'Need to Reschedule?' : 'Butuh Penjadwalan Ulang (Reschedule)?'}
                       </p>
                       <p className="text-slate-500 text-[11px] mt-0.5 max-w-lg leading-relaxed">
-                        Anda diperbolehkan mengubah jadwal tanggal, sesi, atau slot parkir, asalkan dilakukan <strong>minimal 48 jam sebelum</strong> dimulainya jadwal awal di atas.
+                        {language === 'en' ? 'You may change your schedule date, session, or slot, provided it is done at least 48 hours before the initial start time.' : 'Anda diperbolehkan mengubah jadwal tanggal, sesi, atau slot parkir, asalkan dilakukan <strong>minimal 48 jam sebelum</strong> dimulainya jadwal awal di atas.'}
                       </p>
                     </div>
 
@@ -583,7 +604,7 @@ export default function VendorPortal({
                       className="bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 self-stretch md:self-auto justify-center cursor-pointer"
                     >
                       <RotateCcw className="w-4 h-4" />
-                      <span>Ajukan Reschedule</span>
+                      <span>{language === 'en' ? 'Request Reschedule' : 'Ajukan Reschedule'}</span>
                     </button>
                   </div>
                 )}
@@ -594,13 +615,13 @@ export default function VendorPortal({
                     <div className="flex items-center justify-between">
                       <h4 className="font-bold text-sm text-amber-400 flex items-center gap-1.5">
                         <RotateCcw className="w-4.5 h-4.5 animate-spin animate-duration-3000" />
-                        FORMULIR PENJADWALAN ULANG (RESCHEDULE)
+                        {language === 'en' ? 'RESCHEDULE FORM' : 'FORMULIR PENJADWALAN ULANG (RESCHEDULE)'}
                       </h4>
                       <button
                         onClick={() => setReschedulingId(null)}
                         className="text-xs text-slate-400 hover:text-white font-semibold cursor-pointer"
                       >
-                        Batal
+                        {language === 'en' ? 'Cancel' : 'Batal'}
                       </button>
                     </div>
 
@@ -614,8 +635,8 @@ export default function VendorPortal({
                     {rescheduleSuccess ? (
                       <div className="bg-emerald-950/45 p-4 rounded border border-emerald-900 text-emerald-300 text-center text-xs space-y-1">
                         <CheckCircle className="w-8 h-8 text-emerald-400 mx-auto mb-1" />
-                        <p className="font-bold">Reschedule Berhasil Ditindaklanjuti!</p>
-                        <p className="text-[11px] text-emerald-400/80">Slot lama dibebaskan, slot baru berhasil diamankan. Mengalihkan...</p>
+                        <p className="font-bold">{language === 'en' ? 'Reschedule Confirmed!' : 'Reschedule Berhasil Ditindaklanjuti!'}</p>
+                        <p className="text-[11px] text-emerald-400/80">{language === 'en' ? 'Old slot released, new slot secured. Redirecting...' : 'Slot lama dibebaskan, slot baru berhasil diamankan. Mengalihkan...'}</p>
                       </div>
                     ) : (
                       <form onSubmit={handleRescheduleConfirm} className="space-y-4 text-xs">
@@ -624,7 +645,7 @@ export default function VendorPortal({
                           {/* Date input */}
                           <div>
                             <label className="block text-[11px] text-slate-400 font-bold mb-1 uppercase tracking-wider">
-                              Pilih Tanggal Reschedule Baru (Min H+2)
+                              {language === 'en' ? 'New Date (Min D+2)' : 'Pilih Tanggal Reschedule Baru (Min H+2)'}
                             </label>
                             <input
                               id="input-reschedule-date"
@@ -637,13 +658,13 @@ export default function VendorPortal({
                               }}
                               className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 focus:ring-1 focus:ring-indigo-500 focus:outline-none text-white font-mono"
                             />
-                            <p className="text-[10px] text-slate-500 mt-1">Hari Ini: {formatIndoDate(currentDateStrFormatted)} (H+2: {formatIndoDate(minBookingDate)})</p>
+                            <p className="text-[10px] text-slate-500 mt-1">{language === 'en' ? 'Today:' : 'Hari Ini:'} {formatIndoDate(currentDateStrFormatted, language)} ({language === 'en' ? 'D+2:' : 'H+2:'} {formatIndoDate(minBookingDate, language)})</p>
                           </div>
 
                           {/* Session input */}
                           <div>
                             <label className="block text-[11px] text-slate-400 font-bold mb-1 uppercase tracking-wider">
-                              Pilih Sesi Baru
+                              {language === 'en' ? 'New Session' : 'Pilih Sesi Baru'}
                             </label>
                             <select
                               id="select-reschedule-session"
@@ -661,47 +682,19 @@ export default function VendorPortal({
                           </div>
                         </div>
 
-                        {/* Interactive Slot codes selection with visual block */}
+                        {/* Automatic Slot Allocation Notice */}
                         <div>
-                          <label className="block text-[11px] text-slate-400 font-bold mb-1.5 uppercase tracking-wide">
-                            Pilih Slot Baru untuk Tanggal {formatIndoDate(rescheduleDate)} Pada Sesi {rescheduleSession}
-                          </label>
-                          
-                          <div className="grid grid-cols-5 sm:grid-cols-10 gap-1.5">
-                            {ParkingSlots.map((slot) => {
-                              const isTaken = occupiedSlotsForReschedule.includes(slot);
-                              const isSelected = rescheduleSlot === slot;
-                              
-                              return (
-                                <button
-                                  key={slot}
-                                  id={`reschedule-slot-${slot}`}
-                                  type="button"
-                                  disabled={isTaken}
-                                  onClick={() => setRescheduleSlot(slot)}
-                                  className={`py-2 text-center rounded text-xs font-mono font-bold transition flex flex-col items-center justify-center relative cursor-pointer ${
-                                    isTaken
-                                      ? 'bg-slate-800/45 text-slate-500 cursor-not-allowed border border-slate-850'
-                                      : isSelected
-                                      ? 'bg-amber-500 text-slate-950 ring-2 ring-amber-400 font-black'
-                                      : 'bg-slate-950 hover:bg-slate-850 text-slate-200 border border-slate-800'
-                                  }`}
-                                  title={isTaken ? 'Slot Terpakai oleh Vendor lain' : `Pilih Slot ${slot}`}
-                                >
-                                  <span>{slot}</span>
-                                  {isTaken ? (
-                                    <Lock className="w-2.5 h-2.5 text-rose-500 mt-0.5 shrink-0" />
-                                  ) : (
-                                    <span className="text-[8px] opacity-70">FREE</span>
-                                  )}
-                                </button>
-                              );
-                            })}
+                          <div className="bg-slate-900 border border-slate-800 p-3 rounded-lg mt-2">
+                            <span className="text-[11px] text-slate-400 block mb-1">
+                              {language === 'en' ? 'Slot Status:' : 'Status Slot:'}
+                            </span>
+                            <span className="text-xs text-amber-400 font-bold">
+                              {language === 'en' ? 'Auto-Allocated based on load capacity' : 'Otomatis Dialokasikan berdasarkan kapasitas'}
+                            </span>
                           </div>
-                          <p className="text-[10px] text-slate-400 mt-2">
-                            * Slot berkode <span className="text-rose-400 font-semibold">Gembok Merah</span> sudah terambil oleh vendor logistik pendaftar sebelumnya dan diblokir untuk pendaftaran lain.
-                          </p>
                         </div>
+
+                        {/* Manual slot selection removed for Reschedule */}
 
                         <div className="flex justify-end gap-2.5 border-t border-slate-800 pt-3">
                           <button
@@ -710,19 +703,14 @@ export default function VendorPortal({
                             onClick={() => setReschedulingId(null)}
                             className="bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold px-4 py-2 rounded-lg cursor-pointer"
                           >
-                            Tutup
+                            {language === 'en' ? 'Close' : 'Tutup'}
                           </button>
                           <button
                             id="btn-confirm-reschedule"
                             type="submit"
-                            disabled={!rescheduleSlot}
-                            className={`px-5 py-2 rounded-lg font-extrabold text-slate-950 transition cursor-pointer ${
-                              rescheduleSlot 
-                                ? 'bg-amber-400 hover:bg-amber-300 shadow-md' 
-                                : 'bg-slate-700 text-slate-450 cursor-not-allowed'
-                            }`}
+                            className={`px-5 py-2 rounded-lg font-extrabold text-slate-950 transition cursor-pointer bg-amber-400 hover:bg-amber-300 shadow-md`}
                           >
-                            Konfirmasi Jadwal Baru
+                            {language === 'en' ? 'Confirm New Schedule' : 'Konfirmasi Jadwal Baru'}
                           </button>
                         </div>
 
@@ -743,7 +731,7 @@ export default function VendorPortal({
             <div className="bg-white rounded-3xl p-6 shadow-sm border border-slate-100 space-y-4">
               <h3 className="font-bold text-sm text-slate-900 uppercase tracking-wide border-b border-slate-50 pb-2 flex items-center gap-1.5">
                 <AlertTriangle className="w-4 h-4 text-amber-500" />
-                Aturan Kedatangan Logistik
+                {language === 'en' ? 'Logistics Arrival Rules' : 'Aturan Kedatangan Logistik'}
               </h3>
               
               <ul className="text-xs text-slate-600 space-y-3">
@@ -752,8 +740,8 @@ export default function VendorPortal({
                     1
                   </div>
                   <div>
-                    <strong className="text-slate-800 font-semibold block">Regulasi Wajib H+2</strong>
-                    Pemesanan slot bongkar muat paling lambat harus diajukan H-2 sebelum hari kedatangan. Hal ini untuk mempersiapkan dokumen logistik gudang.
+                    <strong className="text-slate-800 font-semibold block">{language === 'en' ? 'Mandatory D+2 Rule' : 'Regulasi Wajib H+2'}</strong>
+                    {language === 'en' ? 'Dock booking must be requested at least D-2 before arrival. This allows warehouse documentation preparation.' : 'Pemesanan slot bongkar muat paling lambat harus diajukan H-2 sebelum hari kedatangan. Hal ini untuk mempersiapkan dokumen logistik gudang.'}
                   </div>
                 </li>
                 <li className="flex gap-2.5">
@@ -761,8 +749,8 @@ export default function VendorPortal({
                     2
                   </div>
                   <div>
-                    <strong className="text-slate-800 font-semibold block">Aturan Ketat Reschedule</strong>
-                    Penjadwalan ulang hanya dapat dilakukan dihitung mundur minimal 48 jam sebelum sesi kedatangan awal Anda dimulai.
+                    <strong className="text-slate-800 font-semibold block">{language === 'en' ? 'Reschedule Rules' : 'Aturan Ketat Reschedule'}</strong>
+                    {language === 'en' ? 'Rescheduling can only be done at least 48 hours prior to your initial scheduled arrival start time.' : 'Penjadwalan ulang hanya dapat dilakukan dihitung mundur minimal 48 jam sebelum sesi kedatangan awal Anda dimulai.'}
                   </div>
                 </li>
                 <li className="flex gap-2.5">
@@ -770,8 +758,8 @@ export default function VendorPortal({
                     3
                   </div>
                   <div>
-                    <strong className="text-slate-800 font-semibold block">Sesi Kedatangan</strong>
-                    Mobil angkutan barang harus sudah terparkir di area antrean 30 menit sebelum sesi waktu dock Anda dimulai.
+                    <strong className="text-slate-800 font-semibold block">{language === 'en' ? 'Arrival Sessions' : 'Sesi Kedatangan'}</strong>
+                    {language === 'en' ? 'Delivery vehicles must be in the queue area 30 minutes before your assigned dock time session.' : 'Mobil angkutan barang harus sudah terparkir di area antrean 30 menit sebelum sesi waktu dock Anda dimulai.'}
                   </div>
                 </li>
               </ul>
@@ -781,14 +769,14 @@ export default function VendorPortal({
             <div className="bg-white rounded-3xl p-6 shadow-sm border border-slate-100 space-y-4">
               <div className="flex items-center justify-between">
                 <h3 className="font-bold text-sm text-slate-900 uppercase tracking-wide">
-                  Visual Layout Sesi Hari Ini
+                  {language === 'en' ? 'Live Session Layout' : 'Visual Layout Sesi Hari Ini'}
                 </h3>
                 <span className="text-[10px] text-indigo-600 font-bold tracking-wide uppercase px-2 py-0.5 bg-indigo-50 rounded">
                   Live
                 </span>
               </div>
               <p className="text-[11px] text-slate-500 leading-normal">
-                Berikut adalah layout sebaran parkir dock utama (A01 - A10) untuk tanggal hari ini <strong>{formatIndoDate(currentDateStrFormatted)}</strong>.
+                {language === 'en' ? 'Here is the parking dock layout (A01 - A10) for today' : 'Berikut adalah layout sebaran parkir dock utama (A01 - A10) untuk tanggal hari ini'} <strong>{formatIndoDate(currentDateStrFormatted, language)}</strong>.
               </p>
 
               <div className="space-y-3.5 pt-2">
@@ -805,7 +793,7 @@ export default function VendorPortal({
                         <span className={`text-[9px] font-mono font-extrabold px-1.5 py-0.2 rounded ${
                           isSessFull ? 'bg-rose-100 text-rose-800' : 'bg-indigo-100 text-indigo-800'
                         }`}>
-                          {occupiedOnThisSess.length}/10 Slot Terisi
+                          {occupiedOnThisSess.length}/10 {language === 'en' ? 'Slots Taken' : 'Slot Terisi'}
                         </span>
                       </div>
                       
@@ -820,7 +808,7 @@ export default function VendorPortal({
                                   ? 'bg-rose-100 text-rose-700 border border-rose-200' 
                                   : 'bg-white text-slate-500 border border-slate-200'
                               }`}
-                              title={taken ? 'Slot Terisi' : 'Slot Kosong'}
+                              title={taken ? (language === 'en' ? 'Occupied' : 'Slot Terisi') : (language === 'en' ? 'Available' : 'Slot Kosong')}
                             >
                               {sl}
                             </div>
@@ -854,10 +842,10 @@ export default function VendorPortal({
 
                 <div className="space-y-1.5">
                   <h3 className="text-xl font-bold text-slate-950">
-                    Pemesanan Tiket Pengiriman Berhasil!
+                    {language === 'en' ? 'Booking Successful!' : 'Pemesanan Tiket Pengiriman Berhasil!'}
                   </h3>
                   <p className="text-xs text-slate-500 max-w-md mx-auto">
-                    Dokumen kedatangan bongkar muat Anda telah disimpan pada sistem operator logistik gudang utama. Catat dan tunjukkan kode tiket berikut:
+                    {language === 'en' ? 'Your booking has been saved to the main logistics system. Note and present this ticket code:' : 'Dokumen kedatangan bongkar muat Anda telah disimpan pada sistem operator logistik gudang utama. Catat dan tunjukkan kode tiket berikut:'}
                   </p>
                 </div>
 
@@ -869,51 +857,51 @@ export default function VendorPortal({
 
                   <div className="flex justify-between items-start border-b border-slate-200 pb-3 mb-4">
                     <div>
-                      <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wide">OPERATOR LOGISTIK</p>
+                      <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wide">{language === 'en' ? 'LOGISTICS OPERATOR' : 'OPERATOR LOGISTIK'}</p>
                       <p className="font-sans font-extrabold text-slate-900 text-sm">PT Triatra Sinergia Pratama</p>
                     </div>
                     <div className="text-right">
-                      <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wide">STATUS</p>
-                      <p className="text-emerald-600 font-bold text-xs uppercase tracking-wider">Terverifikasi</p>
+                      <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wide">{language === 'en' ? 'STATUS' : 'STATUS'}</p>
+                      <p className="text-emerald-600 font-bold text-xs uppercase tracking-wider">{language === 'en' ? 'Verified' : 'Terverifikasi'}</p>
                     </div>
                   </div>
 
                   <div className="space-y-2.5">
                     <div>
-                      <p className="text-[9px] text-slate-400 font-bold">KODE TIKET UNIK (KEEPSAFE)</p>
+                      <p className="text-[9px] text-slate-400 font-bold">{language === 'en' ? 'UNIQUE TICKET CODE' : 'KODE TIKET UNIK (KEEPSAFE)'}</p>
                       <p className="font-bold text-slate-900 text-sm select-all">{latestCreatedTicket.id}</p>
                     </div>
 
                     <div className="grid grid-cols-2 gap-2 text-[11px]">
                       <div>
-                        <p className="text-[9px] text-slate-400 font-bold">NAMA VENDOR</p>
+                        <p className="text-[9px] text-slate-400 font-bold">{language === 'en' ? 'VENDOR NAME' : 'NAMA VENDOR'}</p>
                         <p className="font-bold text-slate-800 font-sans tracking-tight">{latestCreatedTicket.vendorName}</p>
                       </div>
                       <div>
-                        <p className="text-[9px] text-slate-400 font-bold">PIC LAPANGAN</p>
+                        <p className="text-[9px] text-slate-400 font-bold">{language === 'en' ? 'FIELD PIC' : 'PIC LAPANGAN'}</p>
                         <p className="font-bold text-slate-800 font-sans tracking-tight">{latestCreatedTicket.picName}</p>
                       </div>
                     </div>
 
                     <div className="grid grid-cols-2 gap-2 text-[11px] border-t border-slate-200/60 pt-2.5">
                       <div>
-                        <p className="text-[9px] text-slate-400 font-bold">TANGGAL PO</p>
-                        <p className="font-bold text-slate-800 font-sans tracking-tight">{formatIndoDate(latestCreatedTicket.deliveryDate)}</p>
+                        <p className="text-[9px] text-slate-400 font-bold">{language === 'en' ? 'DELIVERY DATE' : 'TANGGAL PO'}</p>
+                        <p className="font-bold text-slate-800 font-sans tracking-tight">{formatIndoDate(latestCreatedTicket.deliveryDate, language)}</p>
                       </div>
                       <div>
-                        <p className="text-[9px] text-slate-400 font-bold">SESI OPERASIONAL</p>
+                        <p className="text-[9px] text-slate-400 font-bold">{language === 'en' ? 'OPERATIONAL SESSION' : 'SESI OPERASIONAL'}</p>
                         <p className="font-bold text-slate-800 tracking-tight">{latestCreatedTicket.session} WIB</p>
                       </div>
                     </div>
 
                     <div className="bg-indigo-600 text-white rounded-xl p-3 text-center space-y-0.5 border border-indigo-750">
-                      <p className="text-[9px] opacity-80 uppercase font-black tracking-widest font-mono">DOCK PARKIR TERPILIH</p>
-                      <p className="text-xl font-black font-mono tracking-wider">SLOT {latestCreatedTicket.slotCode}</p>
+                      <p className="text-[9px] opacity-80 uppercase font-black tracking-widest font-mono">{language === 'en' ? 'SELECTED DOCK SLOT' : 'DOCK PARKIR TERPILIH'}</p>
+                      <p className="text-xl font-black font-mono tracking-wider">{language === 'en' ? 'SLOT' : 'SLOT'} {latestCreatedTicket.slotCode}</p>
                     </div>
 
                     <div className="pt-2 text-[10px] text-slate-400 flex flex-wrap justify-between">
                       <span>{latestCreatedTicket.quantityAmount} Qty &bull; {latestCreatedTicket.koliAmount} Koli &bull; {latestCreatedTicket.poAmount} PO</span>
-                      <span>Dibuat: {new Date(latestCreatedTicket.createdAt).toLocaleTimeString()}</span>
+                      <span>{language === 'en' ? 'Created:' : 'Dibuat:'} {new Date(latestCreatedTicket.createdAt).toLocaleTimeString()}</span>
                     </div>
 
                     {/* Mock barcode strip */}
@@ -921,7 +909,7 @@ export default function VendorPortal({
                       <div className="w-full h-10 bg-slate-800 flex items-center justify-between px-2 text-[6px] tracking-[4px] text-slate-300 font-mono select-none overflow-hidden rounded">
                         || | ||| | |||| | || | ||| || ||| || |||| | ||| | ||| || ||| || ||| | ||| | |||| | || | ||| || ||| || |||| | ||
                       </div>
-                      <p className="text-[8px] text-slate-400 font-normal tracking-widest mt-1 uppercase">Pemeriksaan Sistem Keamanan & Bongkar Muat</p>
+                      <p className="text-[8px] text-slate-400 font-normal tracking-widest mt-1 uppercase">{language === 'en' ? 'System Safety & Unloading Check' : 'Pemeriksaan Sistem Keamanan & Bongkar Muat'}</p>
                     </div>
                   </div>
                 </div>
@@ -933,14 +921,14 @@ export default function VendorPortal({
                     className="bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs px-5 py-3 rounded-xl transition flex items-center justify-center gap-1.5 cursor-pointer"
                   >
                     <Printer className="w-4 h-4" />
-                    <span>Cetak Tiket PDF</span>
+                    <span>{language === 'en' ? 'Print PDF Ticket' : 'Cetak Tiket PDF'}</span>
                   </button>
                   <button
                     id="btn-new-booking-trigger"
                     onClick={() => setLatestCreatedTicket(null)}
                     className="bg-slate-150 hover:bg-slate-200 text-slate-800 font-bold text-xs px-5 py-3 rounded-xl transition cursor-pointer"
                   >
-                    Buat Booking Baru
+                    {language === 'en' ? 'New Booking' : 'Buat Booking Baru'}
                   </button>
                   <button
                     id="btn-track-booking-trigger"
@@ -954,16 +942,16 @@ export default function VendorPortal({
                     }}
                     className="bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs px-5 py-3 rounded-xl transition flex items-center justify-center gap-1.5 cursor-pointer"
                   >
-                    <span>Lacak Tiket Ini &rarr;</span>
+                    <span>{language === 'en' ? 'Track Ticket \u2192' : 'Lacak Tiket Ini \u2192'}</span>
                   </button>
                 </div>
               </div>
             ) : (
               /* The standard booking form structure */
               <div className="bg-white rounded-3xl p-6 shadow-sm border border-slate-100">
-                <h2 className="text-lg font-bold text-slate-900 border-b border-slate-100 pb-3 flex items-center gap-2 mb-5">
+                <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2 mb-3 border-b border-slate-100 pb-3">
                   <Calendar className="w-5 h-5 text-indigo-600" />
-                  Formulir Pengajuan Tiket & Alokasi Slot Parkir
+                  {language === 'en' ? 'Ticket Submission Form & Slot Allocation' : 'Formulir Pengajuan Tiket & Alokasi Slot Parkir'}
                 </h2>
 
                 {bookingError && (
@@ -979,14 +967,14 @@ export default function VendorPortal({
                   <div className="space-y-4">
                     <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1">
                       <User className="w-3.5 h-3.5" />
-                      1. Identitas Lengkap Vendor & Lapangan
+                      {language === 'en' ? '1. Vendor & Field Details' : '1. Identitas Lengkap Vendor & Lapangan'}
                     </h3>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       {/* Email input */}
                       <div>
                         <label className="block text-xs font-bold text-slate-750 mb-1">
-                          Alamat Email Kontak <span className="text-rose-500">*</span>
+                          {language === 'en' ? 'Vendor Contact Email' : 'Email Kontak Vendor'} <span className="text-rose-500">*</span>
                         </label>
                         <div className="relative">
                           <Mail className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
@@ -1005,7 +993,7 @@ export default function VendorPortal({
                       {/* Vendor name input */}
                       <div>
                         <label className="block text-xs font-bold text-slate-750 mb-1">
-                          Nama Perusahaan Vendor <span className="text-rose-500">*</span>
+                          {language === 'en' ? 'Vendor Company Name' : 'Nama Perusahaan Vendor'} <span className="text-rose-500">*</span>
                         </label>
                         <input
                           id="input-vendor-name"
@@ -1165,73 +1153,17 @@ export default function VendorPortal({
                           ))}
                         </select>
                         <p className="text-[10px] text-slate-500 mt-1.5 leading-normal">
-                          Setiap sesi berdurasi tepat 60 menit dengan alokasi 10 slot dock parkir berurutan.
+                          {language === 'en' ? 'Each session has an auto-allocated capacity. Large volumes may span multiple consecutive sessions.' : 'Sistem akan secara otomatis mengalokasikan slot parkir dan memecah sesi jika muatan Anda besar (melebihi batas sesi).'}
                         </p>
                       </div>
                     </div>
 
-                    {/* Dynamic slot codes grid */}
-                    <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200/60 space-y-3">
+                    {/* Dynamic slot codes grid removed - Auto allocation active */}
+                    <div className="bg-indigo-50 p-4 rounded-2xl border border-indigo-100 space-y-3">
                       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
                         <div>
-                          <span className="text-xs font-black text-slate-800 block">Koordinat Denah Dock Parkir ({deliveryDate ? formatIndoDate(deliveryDate) : 'Harap Pilih Tanggal'})</span>
-                          <span className="text-[10px] text-slate-400">Pilih salah satu kode slot (A01 - A10) yang kosong di bawah</span>
-                        </div>
-                        {deliveryDate && (
-                          <div className="bg-slate-200 text-slate-800 px-2 py-0.5 rounded font-mono text-[10px] self-start sm:self-auto">
-                            {10 - occupiedSlotsForBooking.length} / 10 Slot Kosong
-                          </div>
-                        )}
-                      </div>
-
-                      <div className="grid grid-cols-5 sm:grid-cols-10 gap-1.5 pt-1">
-                        {ParkingSlots.map((slot) => {
-                          const isTaken = occupiedSlotsForBooking.includes(slot);
-                          const isSelected = slotCode === slot;
-                          
-                          return (
-                            <button
-                              key={slot}
-                              id={`booking-slot-${slot}`}
-                              type="button"
-                              disabled={isTaken}
-                              onClick={() => setSlotCode(slot)}
-                              className={`py-2.5 text-center rounded-lg text-xs font-mono font-bold transition flex flex-col items-center justify-center relative cursor-pointer ${
-                                isTaken
-                                  ? 'bg-slate-200 text-slate-400 cursor-not-allowed border border-slate-200'
-                                  : isSelected
-                                  ? 'bg-indigo-600 text-white font-black ring-4 ring-indigo-500/30'
-                                  : 'bg-white hover:bg-indigo-50 text-slate-700 border border-slate-200'
-                              }`}
-                              title={isTaken ? 'TERPESAN (Tidak Tersedia)' : `Pilih Slot ${slot}`}
-                            >
-                              <span>{slot}</span>
-                              {isTaken ? (
-                                <Lock className="w-3 h-3 text-amber-500 shrink-0 mt-0.5" />
-                              ) : isSelected ? (
-                                <span className="text-[8px] opacity-90 text-indigo-200">PILIHAN</span>
-                              ) : (
-                                <span className="text-[8px] opacity-50 text-slate-400">FREE</span>
-                              )}
-                            </button>
-                          );
-                        })}
-                      </div>
-
-                      <div className="flex flex-wrap items-center gap-4 text-[10px] text-slate-500 pt-1 border-t border-slate-200">
-                        <div className="flex items-center gap-1">
-                          <div className="w-3.5 h-3.5 bg-white border border-slate-200 rounded"></div>
-                          <span>Tersedia untuk Dipesan</span>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <div className="w-3.5 h-3.5 bg-slate-200 border border-slate-200 rounded flex items-center justify-center">
-                            <Lock className="w-2.5 h-2.5 text-amber-500" />
-                          </div>
-                          <span className="font-semibold text-slate-700">Diblokir (Terisi oleh armada lain)</span>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <div className="w-3.5 h-3.5 bg-indigo-600 rounded"></div>
-                          <span className="font-semibold text-indigo-700">Pilihan Anda Sekarang</span>
+                          <span className="text-xs font-black text-indigo-900 block">{language === 'en' ? 'Automatic Capacity Allocation' : 'Alokasi Kapasitas Otomatis'}</span>
+                          <span className="text-[10px] text-indigo-600/80">{language === 'en' ? 'The system will calculate the required slots based on your input quantities.' : 'Sistem akan menghitung slot yang dibutuhkan berdasarkan input kuantitas Anda.'}</span>
                         </div>
                       </div>
                     </div>
@@ -1246,12 +1178,7 @@ export default function VendorPortal({
                     <button
                       id="btn-submit-booking-form"
                       type="submit"
-                      disabled={!slotCode}
-                      className={`px-6 py-3 rounded-xl text-xs font-black tracking-wide transition shadow cursor-pointer ${
-                        slotCode 
-                          ? 'bg-indigo-600 hover:bg-indigo-500 text-white' 
-                          : 'bg-slate-200 text-slate-450 cursor-not-allowed'
-                      }`}
+                      className={`px-6 py-3 rounded-xl text-xs font-black tracking-wide transition shadow cursor-pointer bg-indigo-600 hover:bg-indigo-500 text-white`}
                     >
                       Ajukan Pemesanan Tiket &rarr;
                     </button>
@@ -1307,9 +1234,9 @@ export default function VendorPortal({
                   </span>
                 </p>
                 <p className="flex justify-between">
-                  <span>Status Slot Parkir:</span>
-                  <span className={slotCode ? 'text-indigo-400 font-black' : 'text-slate-600'}>
-                    {slotCode ? `Slot ${slotCode} Terpilih` : 'Belum Dipilih'}
+                  <span>{language === 'en' ? 'Slot Status:' : 'Status Slot Parkir:'}</span>
+                  <span className="text-indigo-400 font-black">
+                    {language === 'en' ? 'Auto-Allocated' : 'Otomatis Dialokasikan'}
                   </span>
                 </p>
               </div>

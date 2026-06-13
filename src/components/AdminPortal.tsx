@@ -125,7 +125,8 @@ export default function AdminPortal({
         const vendorMatch = t.vendorName.toLowerCase().includes(query);
         const picMatch = t.picName.toLowerCase().includes(query);
         const emailMatch = t.email.toLowerCase().includes(query);
-        const slotMatch = t.slotCode.toLowerCase().includes(query);
+        const slotStr = t.bookedSlots ? t.bookedSlots.map(s => s.slotCode).join(', ') : t.slotCode;
+        const slotMatch = slotStr.toLowerCase().includes(query);
         
         return idMatch || vendorMatch || picMatch || emailMatch || slotMatch;
       }
@@ -172,9 +173,10 @@ export default function AdminPortal({
     return `${y}-${m}`;
   }, [simulatedTime]);
 
-  // tickets active today (status ACTIVE & delivery date matches today)
   const activeTodayCount = useMemo(() => {
-    return tickets.filter(t => t.deliveryDate === currentDateStrStr && t.status === 'ACTIVE').length;
+    return tickets
+      .filter(t => t.deliveryDate === currentDateStrStr && t.status === 'ACTIVE')
+      .reduce((sum, t) => sum + (t.bookedSlots ? t.bookedSlots.length : 1), 0);
   }, [tickets, currentDateStrStr]);
 
   // percentage of slots filled today (max 40 slots per day: 10 docks * 4 sessions = 40)
@@ -267,7 +269,7 @@ export default function AdminPortal({
       t.picName.replace(/"/g, '""'),
       t.deliveryDate,
       t.session,
-      t.slotCode,
+      t.bookedSlots ? t.bookedSlots.map(s => s.slotCode).join(' & ') : t.slotCode,
       t.poAmount,
       t.koliAmount,
       t.itemAmount,
@@ -643,18 +645,18 @@ export default function AdminPortal({
                         </div>
                         <div className="flex items-center gap-1.5 text-[10px] text-slate-500 mt-0.5">
                           <Clock className="w-3.5 h-3.5 text-slate-400" />
-                          <span>Sesi: {t.session} WIB</span>
+                          <span>Sesi: {t.bookedSlots ? t.bookedSlots.map(s => s.session.split('-')[0]).join(', ') : t.session} WIB</span>
                         </div>
                       </td>
 
                       {/* Dock/Slot */}
-                      <td className="px-4.5 py-3.5">
-                        <span className={`font-mono font-black text-xs px-2.5 py-1 rounded inline-block ${
+                      <td className="px-4.5 py-3.5 text-center">
+                        <span className={`font-mono font-black text-[11px] px-2.5 py-1 rounded inline-block ${
                           t.status === 'ACTIVE' 
                             ? 'bg-indigo-600 text-white shadow-sm' 
                             : 'bg-slate-200 text-slate-500'
                         }`}>
-                          {t.slotCode}
+                          {t.bookedSlots ? t.bookedSlots.map(s => s.slotCode).join(', ') : t.slotCode}
                         </span>
                       </td>
 
@@ -739,7 +741,7 @@ export default function AdminPortal({
                         {t.status === 'ACTIVE' ? (
                           <button
                             id={`btn-admin-cancel-${t.id}`}
-                            onClick={() => handleForceCancel(t.id, t.slotCode)}
+                            onClick={() => handleForceCancel(t.id, t.bookedSlots ? t.bookedSlots.map(s=>s.slotCode).join(', ') : t.slotCode)}
                             className="bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 hover:border-rose-300 font-bold px-3 py-1.5 rounded-xl transition flex items-center gap-1 inline-flex cursor-pointer text-[11px]"
                             title="Batalkan Tiket & Lepaskan Slot Parkir"
                           >

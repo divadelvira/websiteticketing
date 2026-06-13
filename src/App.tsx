@@ -51,9 +51,9 @@ export default function App() {
 
   // Calculate dynamic active metrics for today of simulated time
   const totalSlotsOccupiedToday = useMemo(() => {
-    return tickets.filter(
-      t => t.deliveryDate === simulatedDateStr && t.status === 'ACTIVE'
-    ).length;
+    return tickets
+      .filter(t => t.deliveryDate === simulatedDateStr && t.status === 'ACTIVE')
+      .reduce((sum, t) => sum + (t.bookedSlots ? t.bookedSlots.length : 1), 0);
   }, [tickets, simulatedDateStr]);
 
   const activeTicketsCount = useMemo(() => {

@@ -1,3 +1,12 @@
+export interface BookedSlot {
+  session: DeliverySession;
+  slotCode: string;
+  allocatedQuantity: number;
+  allocatedItem: number;
+  allocatedKoli: number;
+  allocatedPo: number;
+}
+
 export interface Ticket {
   id: string; // Dynamic unique ticket code, eg: TKT-20260615-09A03
   email: string;
@@ -8,8 +17,14 @@ export interface Ticket {
   itemAmount: number;
   quantityAmount: number;
   deliveryDate: string; // YYYY-MM-DD
+  
+  // Legacy fields mapped to first slot or single booking
   session: DeliverySession;
   slotCode: string; // A01 - A10
+  
+  // Multi-session fields
+  bookedSlots?: BookedSlot[];
+
   createdAt: string;
   status: 'ACTIVE' | 'CANCELLED';
 }
