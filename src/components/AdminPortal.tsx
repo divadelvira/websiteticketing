@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Ticket } from '../types';
+import { Ticket, DELIVERY_SESSIONS, ParkingSlots } from '../types';
 import { formatIndoDate } from '../utils/mockData';
 import { 
   Lock, 
@@ -543,6 +543,63 @@ export default function AdminPortal({
           </div>
         </div>
 
+      </div>
+
+      {/* Parking docks status dashboard preview */}
+      <div className="bg-white rounded-3xl p-6 shadow-sm border border-slate-100 space-y-4 mb-4">
+        <div className="flex items-center justify-between">
+          <h3 className="font-bold text-sm text-slate-900 uppercase tracking-wide">
+            {t('Live Session Layout', 'Visual Layout Sesi Hari Ini')}
+          </h3>
+          <span className="text-[10px] text-indigo-600 font-bold tracking-wide uppercase px-2 py-0.5 bg-indigo-50 rounded">
+            Live
+          </span>
+        </div>
+        <p className="text-[11px] text-slate-500 leading-normal">
+          {t('Here is the parking dock layout (A01 - A10) for today', 'Berikut adalah layout sebaran parkir dock utama (A01 - A10) untuk tanggal hari ini')} <strong>{formatIndoDate(currentDateStrStr, language)}</strong>.
+        </p>
+
+        <div className="space-y-3.5 pt-2">
+          {DELIVERY_SESSIONS.map((sess) => {
+            const occupiedOnThisSess = tickets.filter(
+              tk => tk.deliveryDate === currentDateStrStr && tk.status === 'ACTIVE'
+            ).flatMap(tk => tk.bookedSlots ? tk.bookedSlots.filter(s => s.session === sess.key).map(s => s.slotCode) : (tk.session === sess.key ? [tk.slotCode] : []));
+            
+            const isSessFull = occupiedOnThisSess.length >= 10;
+            
+            return (
+              <div key={sess.key} className="bg-slate-50 p-2.5 rounded-xl border border-slate-200/60">
+                <div className="flex justify-between items-center mb-1.5">
+                  <span className="text-[11px] text-slate-800 font-bold">{sess.label.split(' ')[0]} {sess.label.substring(sess.label.indexOf('('))}</span>
+                  <span className={`text-[9px] font-mono font-extrabold px-1.5 py-0.2 rounded ${
+                    isSessFull ? 'bg-rose-100 text-rose-800' : 'bg-indigo-100 text-indigo-800'
+                  }`}>
+                    {occupiedOnThisSess.length}/10 {t('Slots Taken', 'Slot Terisi')}
+                  </span>
+                </div>
+                
+                <div className="grid grid-cols-5 sm:grid-cols-10 gap-1">
+                  {ParkingSlots.map(sl => {
+                    const taken = occupiedOnThisSess.includes(sl);
+                    return (
+                      <div
+                        key={sl}
+                        className={`py-1 text-center text-[10px] font-mono font-bold rounded ${
+                          taken 
+                            ? 'bg-rose-100 text-rose-700 border border-rose-200' 
+                            : 'bg-white text-slate-500 border border-slate-200'
+                        }`}
+                        title={taken ? t('Occupied', 'Slot Terisi') as string : t('Available', 'Slot Kosong') as string}
+                      >
+                        {sl}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
+        </div>
       </div>
 
       {/* Control panel: Filters & CSV exports */}

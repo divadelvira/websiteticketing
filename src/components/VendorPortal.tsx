@@ -134,7 +134,19 @@ export default function VendorPortal({
   };
 
   const occupiedSlotsForBooking = useMemo(() => {
-    return [];
+    if (!deliveryDate) return [];
+    const activeTickets = tickets.filter(t => t.deliveryDate === deliveryDate && t.status === 'ACTIVE');
+    const occupied: string[] = [];
+    for (const t of activeTickets) {
+      if (t.bookedSlots) {
+        for (const bs of t.bookedSlots) {
+          if (bs.session === session) occupied.push(bs.slotCode);
+        }
+      } else if (t.session === session) {
+        occupied.push(t.slotCode);
+      }
+    }
+    return occupied;
   }, [deliveryDate, session, tickets]);
 
   const occupiedSlotsForReschedule = useMemo(() => {
@@ -148,8 +160,8 @@ export default function VendorPortal({
     setBookingError(null);
 
     // Validate inputs
-    if (!email || !vendorName || !picName || !poAmount || !koliAmount || !itemAmount || !quantityAmount || !deliveryDate || !session) {
-      setBookingError(language === 'en' ? 'Incomplete form. Please ensure all data is filled.' : 'Isian formulir tidak lengkap. Harap pastikan semua data telah diisi.');
+    if (!email || !vendorName || !picName || !poAmount || !koliAmount || !itemAmount || !quantityAmount || !deliveryDate || !session || !slotCode) {
+      setBookingError(language === 'en' ? 'Incomplete form. Please ensure all data is filled (including slot selection).' : 'Isian formulir tidak lengkap. Harap pastikan semua data telah diisi (termasuk pemilihan slot).');
       return;
     }
 
@@ -163,6 +175,7 @@ export default function VendorPortal({
       tickets,
       deliveryDate,
       session,
+      slotCode,
       Number(quantityAmount),
       Number(itemAmount),
       Number(koliAmount),
@@ -769,65 +782,7 @@ export default function VendorPortal({
                 </li>
               </ul>
             </div>
-
-            {/* Parking docks status dashboard preview */}
-            <div className="bg-white rounded-3xl p-6 shadow-sm border border-slate-100 space-y-4">
-              <div className="flex items-center justify-between">
-                <h3 className="font-bold text-sm text-slate-900 uppercase tracking-wide">
-                  {language === 'en' ? 'Live Session Layout' : 'Visual Layout Sesi Hari Ini'}
-                </h3>
-                <span className="text-[10px] text-indigo-600 font-bold tracking-wide uppercase px-2 py-0.5 bg-indigo-50 rounded">
-                  Live
-                </span>
-              </div>
-              <p className="text-[11px] text-slate-500 leading-normal">
-                {language === 'en' ? 'Here is the parking dock layout (A01 - A10) for today' : 'Berikut adalah layout sebaran parkir dock utama (A01 - A10) untuk tanggal hari ini'} <strong>{formatIndoDate(currentDateStrFormatted, language)}</strong>.
-              </p>
-
-              <div className="space-y-3.5 pt-2">
-                {DELIVERY_SESSIONS.map((sess) => {
-                  const occupiedOnThisSess = tickets.filter(
-                    t => t.deliveryDate === currentDateStrFormatted && t.session === sess.key && t.status === 'ACTIVE'
-                  );
-                  const isSessFull = occupiedOnThisSess.length >= 10;
-                  
-                  return (
-                    <div key={sess.key} className="bg-slate-50 p-2.5 rounded-xl border border-slate-200/60">
-                      <div className="flex justify-between items-center mb-1.5">
-                        <span className="text-[11px] text-slate-800 font-bold">{sess.label.split(' ')[0]} {sess.label.substring(sess.label.indexOf('('))}</span>
-                        <span className={`text-[9px] font-mono font-extrabold px-1.5 py-0.2 rounded ${
-                          isSessFull ? 'bg-rose-100 text-rose-800' : 'bg-indigo-100 text-indigo-800'
-                        }`}>
-                          {occupiedOnThisSess.length}/10 {language === 'en' ? 'Slots Taken' : 'Slot Terisi'}
-                        </span>
-                      </div>
-                      
-                      <div className="grid grid-cols-5 gap-1">
-                        {ParkingSlots.map(sl => {
-                          const taken = occupiedOnThisSess.some(t => t.slotCode === sl);
-                          return (
-                            <div
-                              key={sl}
-                              className={`py-1 text-center text-[10px] font-mono font-bold rounded ${
-                                taken 
-                                  ? 'bg-rose-100 text-rose-700 border border-rose-200' 
-                                  : 'bg-white text-slate-500 border border-slate-200'
-                              }`}
-                              title={taken ? (language === 'en' ? 'Occupied' : 'Slot Terisi') : (language === 'en' ? 'Available' : 'Slot Kosong')}
-                            >
-                              {sl}
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-
           </div>
-
         </div>
       )}
 
@@ -1163,14 +1118,38 @@ export default function VendorPortal({
                       </div>
                     </div>
 
-                    {/* Dynamic slot codes grid removed - Auto allocation active */}
-                    <div className="bg-indigo-50 p-4 rounded-2xl border border-indigo-100 space-y-3">
-                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
-                        <div>
-                          <span className="text-xs font-black text-indigo-900 block">{language === 'en' ? 'Automatic Capacity Allocation' : 'Alokasi Kapasitas Otomatis'}</span>
-                          <span className="text-[10px] text-indigo-600/80">{language === 'en' ? 'The system will calculate the required slots based on your input quantities.' : 'Sistem akan menghitung slot yang dibutuhkan berdasarkan input kuantitas Anda.'}</span>
-                        </div>
+                    {/* Manual Slot Selection */}
+                    <div className="bg-indigo-50/50 p-4 rounded-2xl border border-indigo-100/50 mt-4">
+                      <label className="block text-xs font-bold text-slate-750 mb-2.5">
+                        {language === 'en' ? 'Select Dock Parking Slot' : 'Pilih Slot Parkir Dock'} <span className="text-rose-500">*</span>
+                      </label>
+                      <div className="grid grid-cols-5 gap-2">
+                        {ParkingSlots.map(sl => {
+                          const taken = occupiedSlotsForBooking.includes(sl);
+                          const isSelected = slotCode === sl;
+                          
+                          return (
+                            <button
+                              key={sl}
+                              type="button"
+                              disabled={taken}
+                              onClick={() => setSlotCode(sl)}
+                              className={`py-2 text-center text-xs font-mono font-bold rounded-xl transition-all cursor-pointer ${
+                                taken 
+                                  ? 'bg-slate-200 text-slate-400 cursor-not-allowed opacity-60' 
+                                  : isSelected 
+                                    ? 'bg-indigo-600 text-white shadow-md shadow-indigo-200 scale-105 border-2 border-indigo-600' 
+                                    : 'bg-white text-slate-700 border border-slate-200 hover:border-indigo-400 hover:bg-indigo-50'
+                              }`}
+                            >
+                              {sl}
+                            </button>
+                          );
+                        })}
                       </div>
+                      <p className="text-[10px] text-slate-500 mt-3 leading-relaxed">
+                        {language === 'en' ? 'Select an available slot. If your load is extremely large, the system will evaluate if the chosen slot can continuousy hold your load across multiple sessions.' : 'Silakan pilih slot yang tersedia. Jika muatan Anda sangat besar hingga memakan banyak sesi, pastikan tidak ada vendor lain yang antre di belakang slot pilihan Anda di sesi awal ini.'}
+                      </p>
                     </div>
                   </div>
 

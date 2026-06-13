@@ -189,9 +189,9 @@ export function generateTicketId(dateStr: string, sessionIndex: number, slotCode
 
 // ALGORITHM FOR MULTI-SLOT CAPACITY ALLOCATION
 export const SESSION_LIMITS = {
-  quantity: 1000,
-  item: 1000,
-  koli: 50,
+  quantity: 2500,
+  item: 100,
+  koli: 200,
   po: 10
 };
 
@@ -234,6 +234,7 @@ export function allocateBooking(
   tickets: Ticket[],
   date: string,
   startSession: DeliverySession,
+  selectedSlotCode: string,
   reqQty: number,
   reqItem: number,
   reqKoli: number,
@@ -249,48 +250,99 @@ export function allocateBooking(
   
   if (startIndex === -1) return { success: false, message: "Sesi tidak valid", messageEn: "Invalid session" };
 
-  for (let i = startIndex; i < DELIVERY_SESSIONS.length; i++) {
+  // 1. Evaluate the starting session
+  const startLoad = getSessionLoad(tickets, date, startSession);
+  if (startLoad.occupiedSlots.includes(selectedSlotCode)) {
+    return { 
+      success: false, 
+      message: "Slot yang dipilih sudah terisi pada sesi ini.", 
+      messageEn: "Selected slot is already occupied in this session." 
+    };
+  }
+
+  const startAllocQty = Math.min(remQty, startLoad.availQty);
+  const startAllocItem = Math.min(remItem, startLoad.availItem);
+  const startAllocKoli = Math.min(remKoli, startLoad.availKoli);
+  const startAllocPo = Math.min(remPo, startLoad.availPo);
+
+  // Check if it spills over
+  const willSpillOver = 
+    remQty > startAllocQty || 
+    remItem > startAllocItem || 
+    remKoli > startAllocKoli || 
+    remPo > startAllocPo;
+
+  if (willSpillOver) {
+    // If spilling over, ensure no one is booked BEHIND this slot in the starting session
+    const selectedSlotIdx = ParkingSlots.indexOf(selectedSlotCode);
+    const hasFollowingOccupied = startLoad.occupiedSlots.some(s => ParkingSlots.indexOf(s) > selectedSlotIdx);
+    
+    if (hasFollowingOccupied) {
+      return { 
+        success: false, 
+        message: "Kapasitas muatan Anda sangat besar sehingga akan memakan waktu melebihi sesi ini. Anda tidak dapat memilih slot ini karena sudah ada antrean vendor lain setelah slot Anda di sesi ini.", 
+        messageEn: "Your load capacity is too large and will exceed this session's time. You cannot choose this slot because there are already other vendors queued behind you in this session." 
+      };
+    }
+  }
+
+  // Allocate starting session
+  if (startAllocQty > 0 || startAllocItem > 0 || startAllocKoli > 0 || startAllocPo > 0) {
+    allocations.push({
+      session: startSession,
+      slotCode: selectedSlotCode,
+      allocatedQuantity: startAllocQty,
+      allocatedItem: startAllocItem,
+      allocatedKoli: startAllocKoli,
+      allocatedPo: startAllocPo
+    });
+    remQty -= startAllocQty;
+    remItem -= startAllocItem;
+    remKoli -= startAllocKoli;
+    remPo -= startAllocPo;
+  }
+
+  // 2. Evaluate subsequent spill-over sessions
+  for (let i = startIndex + 1; i < DELIVERY_SESSIONS.length; i++) {
+    if (remQty <= 0 && remItem <= 0 && remKoli <= 0 && remPo <= 0) break;
+
     const sessKey = DELIVERY_SESSIONS[i].key;
     const load = getSessionLoad(tickets, date, sessKey);
-    
-    // Find a free slot in this session
-    const freeSlot = ParkingSlots.find(s => !load.occupiedSlots.includes(s));
-    if (!freeSlot) continue; // Session slots full, skip to next session
-    
-    if (load.availQty <= 0 || load.availItem <= 0 || load.availKoli <= 0 || load.availPo <= 0) {
-       continue; // Session capacity full, skip to next
+    const requiredSlot = 'A01'; // MUST be A01 for spill-overs
+
+    if (load.occupiedSlots.includes(requiredSlot)) {
+      return { 
+        success: false, 
+        message: `Muatan Anda harus dilanjutkan ke sesi berikutnya (${sessKey}), namun Slot ${requiredSlot} pada sesi tersebut sudah dipesan. Silakan pilih jadwal lain yang lebih luang.`, 
+        messageEn: `Your load spills over to the next session (${sessKey}), but Slot ${requiredSlot} is already booked. Please choose a less busy schedule.` 
+      };
     }
 
-    // Allocate greedily
     const allocQty = Math.min(remQty, load.availQty);
     const allocItem = Math.min(remItem, load.availItem);
     const allocKoli = Math.min(remKoli, load.availKoli);
     const allocPo = Math.min(remPo, load.availPo);
 
-    if (allocQty > 0 || allocItem > 0 || allocKoli > 0 || allocPo > 0) {
-      allocations.push({
-        session: sessKey,
-        slotCode: freeSlot,
-        allocatedQuantity: allocQty,
-        allocatedItem: allocItem,
-        allocatedKoli: allocKoli,
-        allocatedPo: allocPo
-      });
-      
-      remQty -= allocQty;
-      remItem -= allocItem;
-      remKoli -= allocKoli;
-      remPo -= allocPo;
-    }
+    allocations.push({
+      session: sessKey,
+      slotCode: requiredSlot,
+      allocatedQuantity: allocQty,
+      allocatedItem: allocItem,
+      allocatedKoli: allocKoli,
+      allocatedPo: allocPo
+    });
 
-    if (remQty <= 0 && remItem <= 0 && remKoli <= 0 && remPo <= 0) break;
+    remQty -= allocQty;
+    remItem -= allocItem;
+    remKoli -= allocKoli;
+    remPo -= allocPo;
   }
 
   if (remQty > 0 || remItem > 0 || remKoli > 0 || remPo > 0) {
     return { 
       success: false, 
-      message: "Kapasitas gudang (atau ketersediaan slot) mulai dari sesi terpilih tidak mencukupi untuk memuat barang Anda di hari tersebut. Silakan pilih hari lain atau kurangi muatan.",
-      messageEn: "Warehouse capacity (or slot availability) from the selected session is insufficient to handle your load on this day. Please select another day or reduce load."
+      message: "Kapasitas keseluruhan sisa hari ini tidak mencukupi untuk memuat barang Anda. Silakan pilih hari lain atau kurangi muatan.",
+      messageEn: "The remaining capacity for the rest of the day is insufficient for your load. Please select another day or reduce load."
     };
   }
 
