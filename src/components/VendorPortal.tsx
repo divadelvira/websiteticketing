@@ -5,7 +5,7 @@ import { Ticket, DELIVERY_SESSIONS, ParkingSlots, DeliverySession } from '../typ
   isRescheduleAllowed, 
   generateTicketId,
   allocateBooking,
-  SESSION_LIMITS
+  SESSION_LIMITS,
 } from '../utils/mockData';
 import { 
   Search, 
