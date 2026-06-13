@@ -395,12 +395,12 @@ export default function AdminPortal({
           </div>
           <div>
             <h1 className="text-lg font-black text-slate-900 flex items-center gap-1.5 flex-wrap">
-              Portal Operator Gudang Triatra
+              {t('Portal Operator Gudang Triatra', 'Triatra Warehouse Operator Portal')}
               <span className="text-[10px] bg-blue-50 text-blue-700 font-extrabold uppercase px-2 py-0.5 rounded-full border border-blue-100 tracking-wider">
                 ASTRA GROUP
               </span>
             </h1>
-            <p className="text-xs text-slate-500">Manajemen antrean, monitoring alokasi dock, dan rekapitulasi data</p>
+            <p className="text-xs text-slate-500">{t('Manajemen antrean, monitoring alokasi dock, dan rekapitulasi data', 'Queue management, dock allocation monitoring, and data summary')}</p>
           </div>
         </div>
 
@@ -410,7 +410,7 @@ export default function AdminPortal({
           className="bg-slate-100 hover:bg-slate-200 text-slate-700 px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 self-start sm:self-auto cursor-pointer"
         >
           <LogOut className="w-4 h-4 text-slate-500" />
-          <span>Keluar Portal</span>
+          <span>{t('Keluar Portal', 'Logout from Portal')}</span>
         </button>
       </div>
 
@@ -418,31 +418,31 @@ export default function AdminPortal({
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         
         <div className="bg-white p-4.5 rounded-2xl border border-slate-100 shadow-sm">
-          <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Tiket Terfilter</p>
-          <p className="text-2xl font-black text-slate-800 mt-1 font-mono">{stats.total} <span className="text-xs text-slate-400 font-normal">registrasi</span></p>
+          <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">{t('Tiket Terfilter', 'Filtered Tickets')}</p>
+          <p className="text-2xl font-black text-slate-800 mt-1 font-mono">{stats.total} <span className="text-xs text-slate-400 font-normal">{t('registrasi', 'registrations')}</span></p>
           <div className="mt-2 text-[10px] text-slate-500 flex gap-2">
-            <span className="text-emerald-600 font-bold">{stats.active} Aktif</span>
+            <span className="text-emerald-600 font-bold">{stats.active} {t('Aktif', 'Active')}</span>
             <span>&bull;</span>
-            <span className="text-rose-500 font-bold">{stats.cancelled} Batal</span>
+            <span className="text-rose-500 font-bold">{stats.cancelled} {t('Batal', 'Cancelled')}</span>
           </div>
         </div>
 
         <div className="bg-white p-4.5 rounded-2xl border border-slate-100 shadow-sm">
-          <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Total Quantity Aktif</p>
+          <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">{t('Total Quantity Aktif', 'Total Active Quantity')}</p>
           <p className="text-2xl font-black text-orange-600 mt-1 font-mono">{stats.totalQty.toLocaleString()}</p>
-          <p className="mt-2 text-[10px] text-slate-400 font-medium">Bahan unit muatan terdaftar</p>
+          <p className="mt-2 text-[10px] text-slate-400 font-medium">{t('Bahan unit muatan terdaftar', 'Registered payload units')}</p>
         </div>
 
         <div className="bg-white p-4.5 rounded-2xl border border-slate-100 shadow-sm">
-          <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Jumlah Dokumen PO</p>
-          <p className="text-2xl font-black text-slate-800 mt-1 font-mono">{stats.totalPO} <span className="text-xs text-slate-400 font-normal">berkas</span></p>
-          <p className="mt-2 text-[10px] text-slate-400 font-medium">Sertifikasi purchase order</p>
+          <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">{t('Jumlah Dokumen PO', 'Total PO Documents')}</p>
+          <p className="text-2xl font-black text-slate-800 mt-1 font-mono">{stats.totalPO} <span className="text-xs text-slate-400 font-normal">{t('berkas', 'files')}</span></p>
+          <p className="mt-2 text-[10px] text-slate-400 font-medium">{t('Sertifikasi purchase order', 'Purchase order certification')}</p>
         </div>
 
         <div className="bg-white p-4.5 rounded-2xl border border-slate-100 shadow-sm">
-          <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Jumlah Koli Terangkut</p>
-          <p className="text-2xl font-black text-slate-800 mt-1 font-mono">{stats.totalKoli} <span className="text-xs text-slate-400 font-normal">dus</span></p>
-          <p className="mt-2 text-[10px] text-slate-400">Total berat kiriman teregistrasi</p>
+          <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">{t('Jumlah Koli Terangkut', 'Total Transported Koli')}</p>
+          <p className="text-2xl font-black text-slate-800 mt-1 font-mono">{stats.totalKoli} <span className="text-xs text-slate-400 font-normal">{t('dus', 'boxes')}</span></p>
+          <p className="mt-2 text-[10px] text-slate-400">{t('Total berat kiriman teregistrasi', 'Total registered shipment weight')}</p>
         </div>
 
       </div>
@@ -454,7 +454,7 @@ export default function AdminPortal({
         <div id="stat-card-occupancy-percent" className="bg-white p-5 rounded-2xl border border-slate-150 border-l-4 border-l-orange-600 shadow-sm hover:shadow-md transition-all duration-300 flex flex-col justify-between">
           <div>
             <div className="flex items-center justify-between">
-              <p className="text-[10px] text-slate-500 font-extrabold uppercase tracking-wider">UTILISASI SLOTS DOCK</p>
+              <p className="text-[10px] text-slate-500 font-extrabold uppercase tracking-wider">{t('UTILISASI SLOTS DOCK', 'DOCK SLOTS UTILIZATION')}</p>
               <span className="text-[9px] bg-blue-50 text-blue-700 font-extrabold px-2 py-0.5 rounded-full border border-blue-100 tracking-wider">ASTRA INTERNAL</span>
             </div>
             <div className="mt-2.5 flex items-baseline gap-2">
@@ -468,7 +468,7 @@ export default function AdminPortal({
                     ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 animate-pulse' 
                     : 'bg-blue-50 text-blue-700 border border-blue-200'
               }`}>
-                {slotOccupancyPercent > 75 ? 'Padat' : slotOccupancyPercent > 40 ? 'Optimal' : 'Senggang'}
+                {slotOccupancyPercent > 75 ? t('Padat', 'Busy') : slotOccupancyPercent > 40 ? t('Optimal', 'Optimal') : t('Senggang', 'Available')}
               </span>
             </div>
           </div>
@@ -480,8 +480,8 @@ export default function AdminPortal({
               />
             </div>
             <div className="text-[10px] text-slate-500 mt-2 font-semibold flex justify-between">
-              <span>Terisi: {activeTodayCount} Slot</span>
-              <span>Kapasitas Efektif: 40 Slot</span>
+              <span>{t('Terisi:', 'Occupied:')} {activeTodayCount} {t('Slot', 'Slots')}</span>
+              <span>{t('Kapasitas Efektif:', 'Effective Capacity:')} 40 {t('Slot', 'Slots')}</span>
             </div>
           </div>
         </div>
@@ -490,22 +490,22 @@ export default function AdminPortal({
         <div id="stat-card-active-today" className="bg-white p-5 rounded-2xl border border-slate-150 border-l-4 border-l-blue-600 shadow-sm hover:shadow-md transition-all duration-300 flex flex-col justify-between">
           <div>
             <div className="flex items-center justify-between">
-              <p className="text-[10px] text-slate-500 font-extrabold uppercase tracking-wider">TIKET AKTIF HARI INI</p>
+              <p className="text-[10px] text-slate-500 font-extrabold uppercase tracking-wider">{t('TIKET AKTIF HARI INI', 'ACTIVE TICKETS TODAY')}</p>
               <div className="w-6 h-6 bg-orange-50 text-orange-600 rounded-lg flex items-center justify-center shrink-0">
                 <Calendar className="w-3.5 h-3.5" />
               </div>
             </div>
             <p className="text-3xl font-black text-slate-900 mt-2.5 font-mono tracking-tight">
-              {activeTodayCount} <span className="text-xs text-slate-400 font-normal">tiket aktif</span>
+              {activeTodayCount} <span className="text-xs text-slate-400 font-normal">{t('tiket aktif', 'active tickets')}</span>
             </p>
           </div>
           <div className="mt-3 pt-3 border-t border-slate-100 space-y-1.5">
             <p className="text-[10px] text-slate-500 font-medium flex items-center gap-1">
               <Clock className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-              <span>Tanggal: <strong className="text-slate-800">{formatIndoDate(currentDateStrStr)}</strong></span>
+              <span>{t('Tanggal:', 'Date:')} <strong className="text-slate-800">{formatIndoDate(currentDateStrStr, language)}</strong></span>
             </p>
             <div className="text-[9px] bg-slate-50 text-slate-500 p-1.5 rounded border border-slate-100 flex justify-between items-center">
-              <span>Status Operasional</span>
+              <span>{t('Status Operasional', 'Operational Status')}</span>
               <span className="text-emerald-600 font-extrabold">LIVE</span>
             </div>
           </div>
@@ -515,18 +515,18 @@ export default function AdminPortal({
         <div id="stat-card-cancelled-this-month" className="bg-white p-5 rounded-2xl border border-slate-150 border-l-4 border-l-slate-400 shadow-sm hover:shadow-md transition-all duration-300 flex flex-col justify-between">
           <div>
             <div className="flex items-center justify-between">
-              <p className="text-[10px] text-slate-500 font-extrabold uppercase tracking-wider">REKAPITULASI PEMBATALAN</p>
+              <p className="text-[10px] text-slate-500 font-extrabold uppercase tracking-wider">{t('REKAPITULASI PEMBATALAN', 'CANCELLATION SUMMARY')}</p>
               <div className="w-6 h-6 bg-red-50 text-rose-600 rounded-lg flex items-center justify-center shrink-0">
                 <XCircle className="w-3.5 h-3.5" />
               </div>
             </div>
             <p className="text-3xl font-black text-rose-600 mt-2.5 font-mono tracking-tight">
-              {cancelledThisMonthCount} <span className="text-xs text-slate-400 font-normal">tiket</span>
+              {cancelledThisMonthCount} <span className="text-xs text-slate-400 font-normal">{t('tiket', 'tickets')}</span>
             </p>
           </div>
           <div className="mt-3 pt-3 border-t border-slate-100">
             <div className="flex items-center justify-between text-[10px] text-slate-500 font-bold mb-1">
-              <span>SLA Kebatalan Bulanan</span>
+              <span>{t('SLA Kebatalan Bulanan', 'Monthly Cancellation SLA')}</span>
               <span className={cancellationRate > 15 ? 'text-rose-600' : 'text-emerald-600'}>
                 {cancellationRate}%
               </span>
@@ -538,7 +538,7 @@ export default function AdminPortal({
               />
             </div>
             <p className="text-[9px] text-slate-400 mt-1.5 leading-tight">
-              Dari rentang total <strong>{totalThisMonthCount}</strong> kuota pengiriman bulan ini ({getIndoMonthLabel(currentMonthStr)}).
+              {t('Dari rentang total', 'From a total of')} <strong>{totalThisMonthCount}</strong> {t('kuota pengiriman bulan ini', 'delivery quotas this month')} ({getIndoMonthLabel(currentMonthStr)}).
             </p>
           </div>
         </div>
@@ -558,7 +558,7 @@ export default function AdminPortal({
               <input
                 id="admin-search-input"
                 type="text"
-                placeholder="Cari Agen, Vendor, PIC, Slot (contoh: A05)..."
+                placeholder={t('Cari Agen, Vendor, PIC, Slot (contoh: A05)...', 'Search Agent, Vendor, PIC, Slot (e.g., A05)...')}
                 value={adminSearch}
                 onChange={(e) => setAdminSearch(e.target.value)}
                 className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 pl-9 text-xs focus:bg-white focus:ring-1 focus:ring-indigo-500 focus:outline-none text-slate-800"
@@ -574,7 +574,7 @@ export default function AdminPortal({
                 onChange={(e) => setSelectedMonth(e.target.value)}
                 className="bg-transparent text-xs font-semibold focus:outline-none text-slate-700 font-sans pr-1"
               >
-                <option value="ALL">Semua Bulan Pengiriman</option>
+                <option value="ALL">{t('Semua Bulan Pengiriman', 'All Delivery Months')}</option>
                 {availableMonths.map(mon => (
                   <option key={mon} value={mon}>
                     {getIndoMonthLabel(mon)}
@@ -592,7 +592,7 @@ export default function AdminPortal({
             className="bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2 rounded-xl text-xs font-black transition flex items-center justify-center gap-1.5 shrink-0 cursor-pointer shadow-sm"
           >
             <FileSpreadsheet className="w-4 h-4" />
-            <span>Ekspor ke CSV (.csv)</span>
+            <span>{t('Ekspor ke CSV (.csv)', 'Export to CSV (.csv)')}</span>
           </button>
         </div>
 
@@ -604,21 +604,21 @@ export default function AdminPortal({
         {filteredTickets.length === 0 ? (
           <div className="py-20 text-center text-slate-400">
             <Inbox className="w-14 h-14 mx-auto text-slate-200 mb-2" />
-            <p className="text-sm font-bold text-slate-600">Tidak Ada Data Tiket Cocok</p>
-            <p className="text-xs mt-1 max-w-xs mx-auto">Sesuaikan filter pencarian atau saringan bulan pengujian.</p>
+            <p className="text-sm font-bold text-slate-600">{t('Tidak Ada Data Tiket Cocok', 'No Matching Ticket Data')}</p>
+            <p className="text-xs mt-1 max-w-xs mx-auto">{t('Sesuaikan filter pencarian atau saringan bulan pengujian.', 'Adjust the search filter or testing month filter.')}</p>
           </div>
         ) : (
           <div className="overflow-x-auto min-w-full">
             <table className="min-w-full text-xs text-left border-collapse">
               <thead>
                 <tr className="bg-slate-900 text-slate-100 uppercase font-bold text-[10px] tracking-wider border-b border-slate-850">
-                  <th className="px-4.5 py-3">Kode Tiket</th>
-                  <th className="px-4.5 py-3">Jadwal Pengiriman</th>
-                  <th className="px-4.5 py-3">Dock/Slot</th>
-                  <th className="px-4.5 py-3">Vendor / PIC</th>
-                  <th className="px-4.5 py-3 text-right">Volumetrik Cargo</th>
-                  <th className="px-4.5 py-3 text-center">Status</th>
-                  <th className="px-4.5 py-3 text-right">Tindakan Admin</th>
+                  <th className="px-4.5 py-3">{t('Kode Tiket', 'Ticket Code')}</th>
+                  <th className="px-4.5 py-3">{t('Jadwal Pengiriman', 'Delivery Schedule')}</th>
+                  <th className="px-4.5 py-3">{t('Dock/Slot', 'Dock/Slot')}</th>
+                  <th className="px-4.5 py-3">{t('Vendor / PIC', 'Vendor / PIC')}</th>
+                  <th className="px-4.5 py-3 text-right">{t('Volumetrik Cargo', 'Cargo Volumetric')}</th>
+                  <th className="px-4.5 py-3 text-center">{t('Status', 'Status')}</th>
+                  <th className="px-4.5 py-3 text-right">{t('Tindakan Admin', 'Admin Actions')}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 font-medium text-slate-700">
