@@ -20,6 +20,7 @@ import {
   AlertTriangle,
   Inbox
 } from 'lucide-react';
+import { useLanguage } from '../contexts/LanguageContext';
 
 interface AdminPortalProps {
   tickets: Ticket[];
@@ -34,6 +35,7 @@ export default function AdminPortal({
   onCancelTicket,
   simulatedTime
 }: AdminPortalProps) {
+  const { t } = useLanguage();
   // Login State
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [username, setUsername] = useState('');
@@ -61,7 +63,7 @@ export default function AdminPortal({
         sessionStorage.setItem('admin_session', 'true');
       } catch (err) {}
     } else {
-      setLoginError('Kredensial salah! Gunakan username "admin" dan password "whsjkttriatra" seperti tertera pada panduan.');
+      setLoginError(t('Kredensial salah! Silakan periksa kembali username dan password Anda.', 'Invalid credentials! Please check your username and password.') as string);
     }
   };
 
@@ -309,13 +311,13 @@ export default function AdminPortal({
           {/* Header Banner */}
           <div className="bg-slate-900 px-6 py-8 text-center text-slate-100 border-b border-slate-850 relative">
             <div className="absolute top-2 right-2 bg-orange-500/10 text-orange-400 border border-orange-500/25 rounded font-mono text-[9px] px-1.5 font-bold">
-              PORTAL ADMIN
+              {t('PORTAL ADMIN', 'ADMIN PORTAL')}
             </div>
             <div className="w-12 h-12 bg-orange-600 rounded-2xl flex items-center justify-center mx-auto mb-3 shadow">
               <Lock className="w-6 h-6 text-white" />
             </div>
-            <h1 className="text-lg font-bold tracking-tight">Operator Portal — PT Triatra Sinergia Pratama</h1>
-            <p className="text-xs text-slate-400 mt-1">Gunakan kredensial pengawas resmi untuk masuk mengelola slot parkir</p>
+            <h1 className="text-lg font-bold tracking-tight">{t('Operator Portal — PT Triatra Sinergia Pratama', 'Operator Portal — PT Triatra Sinergia Pratama')}</h1>
+            <p className="text-xs text-slate-400 mt-1">{t('Gunakan kredensial pengawas resmi untuk masuk mengelola slot parkir', 'Use official supervisor credentials to manage parking slots')}</p>
           </div>
 
           <form onSubmit={handleLogin} className="p-6 space-y-4">
@@ -330,7 +332,7 @@ export default function AdminPortal({
             {/* Username Input */}
             <div>
               <label className="block text-xs font-bold text-slate-700 mb-1">
-                Username Operator <span className="text-rose-500">*</span>
+                {t('Username Operator', 'Operator Username')} <span className="text-rose-500">*</span>
               </label>
               <div className="relative">
                 <User className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
@@ -338,7 +340,7 @@ export default function AdminPortal({
                   id="admin-username-input"
                   type="text"
                   required
-                  placeholder="admin"
+                  placeholder="user"
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
                   className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 pl-9 text-xs focus:bg-white focus:ring-1 focus:ring-orange-500 focus:outline-none text-slate-800"
@@ -349,7 +351,7 @@ export default function AdminPortal({
             {/* Password Input */}
             <div>
               <label className="block text-xs font-bold text-slate-700 mb-1">
-                Password Keamanan <span className="text-rose-500">*</span>
+                {t('Password Keamanan', 'Security Password')} <span className="text-rose-500">*</span>
               </label>
               <div className="relative">
                 <Key className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
@@ -357,7 +359,7 @@ export default function AdminPortal({
                   id="admin-password-input"
                   type="password"
                   required
-                  placeholder="whsjkttriatra"
+                  placeholder="passadmin"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 pl-9 text-xs focus:bg-white focus:ring-1 focus:ring-orange-500 focus:outline-none text-slate-850"
@@ -370,20 +372,8 @@ export default function AdminPortal({
               type="submit"
               className="w-full bg-orange-600 hover:bg-orange-500 text-white font-bold py-2.5 rounded-xl text-xs transition cursor-pointer shadow-sm"
             >
-              Masuk Dashboard Admin
+              {t('Masuk Dashboard Admin', 'Enter Admin Dashboard')}
             </button>
-
-            {/* Static credentials display for ease of grading */}
-            <div className="bg-orange-50/60 rounded-xl p-3.5 border border-orange-100 text-[11px] text-orange-900 space-y-1">
-              <p className="font-bold uppercase tracking-wider text-[9px] text-orange-600">Petunjuk Login Reviewer:</p>
-              <p className="leading-relaxed text-slate-600">
-                Kredensial untuk pengujian prototipe sistem admin:
-              </p>
-              <div className="font-mono text-xs pt-1 flex justify-between">
-                <span>Username: <strong className="text-slate-900">admin</strong></span>
-                <span>Password: <strong className="text-slate-900">whsjkttriatra</strong></span>
-              </div>
-            </div>
 
           </form>
 

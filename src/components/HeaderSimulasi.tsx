@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { Clock, Calendar, Activity, RefreshCw, Info } from 'lucide-react';
+import { Clock, Calendar, Activity, RefreshCw, Info, Globe } from 'lucide-react';
+import { useLanguage } from '../contexts/LanguageContext';
 
 interface HeaderSimulasiProps {
   simulatedTime: Date;
@@ -14,6 +15,7 @@ export default function HeaderSimulasi({
   activeTicketsCount,
   totalSlotsOccupiedToday
 }: HeaderSimulasiProps) {
+  const { t, language, setLanguage } = useLanguage();
   const [showConfig, setShowConfig] = useState(false);
   const [dateInput, setDateInput] = useState('2026-06-13');
   const [timeInput, setTimeInput] = useState('08:00');
@@ -49,13 +51,15 @@ export default function HeaderSimulasi({
     setTimeInput(`${hh}:${mm}`);
   };
 
-  // Format Indo Month
-  const formatFullIndoDateTime = (date: Date) => {
-    const days = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
-    const months = [
-      'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
-      'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
-    ];
+  const formatFullDateTime = (date: Date) => {
+    const daysEn = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    const monthsEn = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+    
+    const daysId = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
+    const monthsId = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
+    
+    const days = language === 'en' ? daysEn : daysId;
+    const months = language === 'en' ? monthsEn : monthsId;
     
     const day = days[date.getDay()];
     const dateNum = date.getDate();
@@ -64,7 +68,7 @@ export default function HeaderSimulasi({
     const hour = String(date.getHours()).padStart(2, '0');
     const min = String(date.getMinutes()).padStart(2, '0');
     
-    return `${day}, ${dateNum} ${month} ${year} — Pukul ${hour}:${min} WIB`;
+    return `${day}, ${dateNum} ${month} ${year} — ${language === 'en' ? 'At' : 'Pukul'} ${hour}:${min} WIB`;
   };
 
   // Calculate capacity percentage (assuming 40 slots total per day)
@@ -79,15 +83,15 @@ export default function HeaderSimulasi({
           <div className="flex flex-wrap items-center gap-4 text-slate-400">
             <div className="flex items-center gap-1.5">
               <Activity className="w-4 h-4 text-emerald-500 animate-pulse animate-duration-1000" />
-              <span className="font-semibold text-slate-200">Operasional Gudang:</span>
+              <span className="font-semibold text-slate-200">{t('Operasional Gudang:', 'Warehouse Operations:')}</span>
               <span className="bg-emerald-500/10 text-emerald-400 px-2 py-0.5 rounded border border-emerald-500/20 font-mono">NORMAL</span>
             </div>
             
             <div className="h-4 w-[1px] bg-slate-800 hidden sm:block"></div>
             
             <div className="flex items-center gap-1.5">
-              <span className="text-slate-500 font-medium">Slot Hari Ini:</span>
-              <span className="font-mono text-slate-200">{totalSlotsOccupiedToday} / 40 Terisi ({capacityPct}%)</span>
+              <span className="text-slate-500 font-medium">{t('Slot Hari Ini:', 'Today Slots:')}</span>
+              <span className="font-mono text-slate-200">{totalSlotsOccupiedToday} / 40 {t('Terisi', 'Occupied')} ({capacityPct}%)</span>
               <div className="w-16 h-2 bg-slate-800 rounded-full overflow-hidden">
                 <div 
                   className={`h-full rounded-full transition-all duration-500 ${
@@ -101,32 +105,51 @@ export default function HeaderSimulasi({
             <div className="h-4 w-[1px] bg-slate-800 hidden md:block"></div>
 
             <div className="flex items-center gap-1.5">
-              <span className="text-slate-500 font-medium">Total Tiket Aktif:</span>
+              <span className="text-slate-500 font-medium">{t('Total Tiket Aktif:', 'Total Active Tickets:')}</span>
               <span className="bg-slate-800 text-orange-400 px-2 py-0.5 rounded font-mono font-semibold">
-                {activeTicketsCount} Tiket
+                {activeTicketsCount} {t('Tiket', 'Tickets')}
               </span>
             </div>
           </div>
 
-          {/* Simulated Clock Panel trigger */}
-          <div className="flex items-center justify-between md:justify-end gap-2 bg-slate-950/60 p-2 rounded-lg border border-slate-850 self-stretch md:self-auto">
-            <div className="flex items-center gap-2">
-              <Clock className="w-4 h-4 text-orange-400" />
-              <div>
-                <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">WAKTU SIMULASI OPERASIONAL</p>
-                <p className="font-mono text-slate-200 text-[11px] sm:text-xs">
-                  {formatFullIndoDateTime(simulatedTime)}
-                </p>
-              </div>
+          {/* Actions: Clock and Language */}
+          <div className="flex items-center gap-2 self-stretch md:self-auto">
+            {/* Language Switcher */}
+            <div className="flex items-center bg-slate-950/60 rounded-lg border border-slate-850 p-1">
+              <button 
+                onClick={() => setLanguage('id')}
+                className={`px-2 py-1 text-[10px] font-bold rounded cursor-pointer transition ${language === 'id' ? 'bg-slate-800 text-white' : 'text-slate-500 hover:text-slate-300'}`}
+              >
+                ID
+              </button>
+              <button 
+                onClick={() => setLanguage('en')}
+                className={`px-2 py-1 text-[10px] font-bold rounded cursor-pointer transition ${language === 'en' ? 'bg-slate-800 text-white' : 'text-slate-500 hover:text-slate-300'}`}
+              >
+                EN
+              </button>
             </div>
-            <button
-              id="btn-toggle-time-sim"
-              onClick={() => setShowConfig(!showConfig)}
-              className="bg-orange-600 hover:bg-orange-500 text-white font-semibold px-2.5 py-1 rounded transition flex items-center gap-1 cursor-pointer"
-            >
-              <RefreshCw className="w-3.5 h-3.5" />
-              <span>Sesuaikan Clock</span>
-            </button>
+
+            {/* Simulated Clock Panel trigger */}
+            <div className="flex items-center gap-2 bg-slate-950/60 p-2 rounded-lg border border-slate-850">
+              <div className="flex items-center gap-2">
+                <Clock className="w-4 h-4 text-orange-400" />
+                <div>
+                  <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">{t('WAKTU SIMULASI OPERASIONAL', 'OPERATIONAL SIMULATION TIME')}</p>
+                  <p className="font-mono text-slate-200 text-[11px] sm:text-xs">
+                    {formatFullDateTime(simulatedTime)}
+                  </p>
+                </div>
+              </div>
+              <button
+                id="btn-toggle-time-sim"
+                onClick={() => setShowConfig(!showConfig)}
+                className="bg-orange-600 hover:bg-orange-500 text-white font-semibold px-2.5 py-1 rounded transition flex items-center gap-1 cursor-pointer"
+              >
+                <RefreshCw className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">{t('Sesuaikan', 'Adjust')}</span>
+              </button>
+            </div>
           </div>
 
         </div>
@@ -137,15 +160,17 @@ export default function HeaderSimulasi({
             <div className="flex items-start gap-2.5 mb-3">
               <Info className="w-4.5 h-4.5 text-orange-400 shrink-0 mt-0.5" />
               <p className="text-xs text-slate-300">
-                Fitur <strong>Simulasi Waktu</strong> ini disediakan secara khusus agar penilai
-                dapat dengan mudah menguji batasan pengiriman <strong>minimal H+2</strong> serta aturan reschedule
-                maksimal <strong>48 jam sebelum keberangkatan</strong> dengan memajukan/memundurkan tanggal sistem.
+                {language === 'en' ? (
+                  <>This <strong>Time Simulation</strong> feature is strictly provided to easily test the <strong>min H+2</strong> constraint and the <strong>48-hour</strong> reschedule rule by forwarding/rewinding system date.</>
+                ) : (
+                  <>Fitur <strong>Simulasi Waktu</strong> ini disediakan secara khusus agar penilai dapat dengan mudah menguji batasan pengiriman <strong>minimal H+2</strong> serta aturan reschedule maksimal <strong>48 jam sebelum keberangkatan</strong> dengan memajukan/memundurkan tanggal sistem.</>
+                )}
               </p>
             </div>
             
             <form onSubmit={handleApply} className="grid grid-cols-1 sm:grid-cols-4 gap-3 items-end">
               <div>
-                <label className="block text-[10px] text-slate-400 font-bold mb-1 uppercase tracking-wider">Tanggal Simulasi</label>
+                <label className="block text-[10px] text-slate-400 font-bold mb-1 uppercase tracking-wider">{t('Tanggal Simulasi', 'Simulation Date')}</label>
                 <div className="relative">
                   <Calendar className="w-4 h-4 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
                   <input
@@ -159,7 +184,7 @@ export default function HeaderSimulasi({
               </div>
 
               <div>
-                <label className="block text-[10px] text-slate-400 font-bold mb-1 uppercase tracking-wider">Waktu Simulasi (WIB)</label>
+                <label className="block text-[10px] text-slate-400 font-bold mb-1 uppercase tracking-wider">{t('Waktu Simulasi (WIB)', 'Simulation Time (WIB)')}</label>
                 <div className="relative">
                   <Clock className="w-4 h-4 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
                   <input
@@ -179,7 +204,7 @@ export default function HeaderSimulasi({
                   onClick={() => fastForwardHours(24)}
                   className="bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs px-2.5 py-1.5 rounded transition font-medium border border-slate-700/60 flex-1 cursor-pointer"
                 >
-                  +24 Jam
+                  {t('+24 Jam', '+24 Hours')}
                 </button>
                 <button
                   id="btn-sim-FF48"
@@ -187,7 +212,7 @@ export default function HeaderSimulasi({
                   onClick={() => fastForwardHours(48)}
                   className="bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs px-2.5 py-1.5 rounded transition font-medium border border-slate-700/60 flex-1 cursor-pointer"
                 >
-                  +48 Jam (2 Hari)
+                  {t('+48 Jam (2 Hari)', '+48 Hrs (2 Days)')}
                 </button>
                 <button
                   id="btn-sim-reset"
@@ -195,14 +220,14 @@ export default function HeaderSimulasi({
                   onClick={resetToDefault}
                   className="bg-amber-950/40 hover:bg-amber-950/70 text-amber-300 text-xs px-2.5 py-1.5 rounded transition font-medium border border-amber-900/40 cursor-pointer"
                 >
-                  Reset (13 Juni)
+                  {t('Reset (13 Juni)', 'Reset (June 13)')}
                 </button>
                 <button
                   id="btn-sim-apply"
                   type="submit"
                   className="bg-orange-600 hover:bg-orange-500 text-white font-bold text-xs px-4 py-1.5 rounded transition cursor-pointer"
                 >
-                  Terapkan
+                  {t('Terapkan', 'Apply')}
                 </button>
               </div>
             </form>

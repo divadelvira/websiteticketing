@@ -5,10 +5,12 @@ import HeaderSimulasi from './components/HeaderSimulasi';
 import VendorPortal from './components/VendorPortal';
 import AdminPortal from './components/AdminPortal';
 import { Layers, Shield, Warehouse } from 'lucide-react';
+import { useLanguage } from './contexts/LanguageContext';
 
 const LOCAL_STORAGE_KEY = 'warehouse_shipping_tickets_v1';
 
 export default function App() {
+  const { t } = useLanguage();
   // 1. Core database state initialized from browser localStorage or seed templates
   const [tickets, setTickets] = useState<Ticket[]>(() => {
     try {
@@ -125,7 +127,7 @@ export default function App() {
               }`}
             >
               <Layers className="w-4 h-4" />
-              <span>Portal Vendor Publik</span>
+              <span>{t('Portal Vendor Publik', 'Public Vendor Portal')}</span>
             </button>
             
             <button
@@ -138,7 +140,7 @@ export default function App() {
               }`}
             >
               <Shield className="w-4 h-4" />
-              <span>Portal Admin Gudang</span>
+              <span>{t('Portal Admin Gudang', 'Warehouse Admin Portal')}</span>
             </button>
           </div>
 
@@ -173,7 +175,7 @@ export default function App() {
       <footer className="bg-white border-t border-slate-100 py-6 text-center text-[11px] text-slate-400 mt-12 font-medium">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-1.5">
           <p>
-            &copy; 2025 <strong>PT Triatra Sinergia Pratama</strong>. Hak Cipta Dilindungi Undang-Undang.
+            &copy; 2025 <strong>PT Triatra Sinergia Pratama</strong>. {t('Hak Cipta Dilindungi Undang-Undang.', 'All Rights Reserved.')}
           </p>
           <p className="opacity-70 text-[10px]">
             prototype project by Diva & Andre
