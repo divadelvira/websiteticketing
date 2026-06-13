@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { Ticket, DELIVERY_SESSIONS, ParkingSlots, DeliverySession } from '../types';
-  getMinBookingDateStr, 
+import { 
+getMinBookingDateStr, 
   formatIndoDate, 
   isRescheduleAllowed, 
   generateTicketId,
