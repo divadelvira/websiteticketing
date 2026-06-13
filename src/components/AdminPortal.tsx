@@ -35,7 +35,7 @@ export default function AdminPortal({
   onCancelTicket,
   simulatedTime
 }: AdminPortalProps) {
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   // Login State
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [username, setUsername] = useState('');
