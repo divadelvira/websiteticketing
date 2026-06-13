@@ -78,6 +78,7 @@ export default function VendorPortal({
   // Date and session choices
   const [deliveryDate, setDeliveryDate] = useState('');
   const [session, setSession] = useState<DeliverySession>('08:00-09:00');
+  const [slotCode, setSlotCode] = useState<string | null>(null);
   const [bookingError, setBookingError] = useState<string | null>(null);
   const [latestCreatedTicket, setLatestCreatedTicket] = useState<Ticket | null>(null);
 
