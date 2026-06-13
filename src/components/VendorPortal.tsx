@@ -1124,7 +1124,7 @@ export default function VendorPortal({
                       <label className="block text-xs font-bold text-slate-750 mb-2.5">
                         {language === 'en' ? 'Select Dock Parking Slot' : 'Pilih Slot Parkir Dock'} <span className="text-rose-500">*</span>
                       </label>
-                      <div className="grid grid-cols-5 gap-2">
+                      <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
                         {ParkingSlots.map(sl => {
                           const taken = occupiedSlotsForBooking.includes(sl);
                           const isSelected = slotCode === sl;
@@ -1155,7 +1155,7 @@ export default function VendorPortal({
                   </div>
 
                   {/* Submit actions */}
-                  <div className="pt-3 border-t border-slate-100 flex items-center justify-between">
+                  <div className="pt-3 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-4">
                     <span className="text-[11px] text-slate-500">
                       * Kolom bertanda merah wajib diverifikasi keakuratannya.
                     </span>
