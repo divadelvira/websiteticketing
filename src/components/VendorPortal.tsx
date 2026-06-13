@@ -1,12 +1,14 @@
 import React, { useState, useMemo } from 'react';
-import { Ticket, DELIVERY_SESSIONS, ParkingSlots, DeliverySession } from '../types';
+import { Ticket, DELIVERY_SESSIONS, ParkingSlots, DeliverySession, SlotOverride } from '../types';
 import { 
 getMinBookingDateStr, 
   formatIndoDate, 
   isRescheduleAllowed, 
   generateTicketId,
+  generateTicketId,
   allocateBooking,
   SESSION_LIMITS,
+  getSessionLoad
 } from '../utils/mockData';
 import { 
   Search, 
@@ -34,6 +36,7 @@ interface VendorPortalProps {
   onUpdateTicket: (updated: Ticket) => void;
   onCancelTicket: (ticketId: string) => void;
   simulatedTime: Date;
+  slotOverrides?: SlotOverride[];
 }
 
 type TabType = 'beranda' | 'pesan';
@@ -43,7 +46,8 @@ export default function VendorPortal({
   onAddTicket,
   onUpdateTicket,
   onCancelTicket,
-  simulatedTime
+  simulatedTime,
+  slotOverrides = []
 }: VendorPortalProps) {
   const { language } = useLanguage();
 
@@ -134,21 +138,13 @@ export default function VendorPortal({
       .map(t => t.slotCode);
   };
 
-  const occupiedSlotsForBooking = useMemo(() => {
-    if (!deliveryDate) return [];
-    const activeTickets = tickets.filter(t => t.deliveryDate === deliveryDate && t.status === 'ACTIVE');
-    const occupied: string[] = [];
-    for (const t of activeTickets) {
-      if (t.bookedSlots) {
-        for (const bs of t.bookedSlots) {
-          if (bs.session === session) occupied.push(bs.slotCode);
-        }
-      } else if (t.session === session) {
-        occupied.push(t.slotCode);
-      }
-    }
-    return occupied;
-  }, [deliveryDate, session, tickets]);
+  const sessionLoad = useMemo(() => {
+    if (!deliveryDate) return null;
+    return getSessionLoad(tickets, deliveryDate, session, slotOverrides);
+  }, [deliveryDate, session, tickets, slotOverrides]);
+
+  const occupiedSlotsForBooking = sessionLoad?.occupiedSlots || [];
+  const isSessionFull = sessionLoad ? (sessionLoad.availQty <= 0 || sessionLoad.availItem <= 0 || sessionLoad.availKoli <= 0 || sessionLoad.availPo <= 0) : false;
 
   const occupiedSlotsForReschedule = useMemo(() => {
     if (!rescheduleDate) return [];
@@ -180,7 +176,8 @@ export default function VendorPortal({
       Number(quantityAmount),
       Number(itemAmount),
       Number(koliAmount),
-      Number(poAmount)
+      Number(poAmount),
+      slotOverrides
     );
 
     if (!allocResult.success || !allocResult.allocations || allocResult.allocations.length === 0) {
@@ -1126,7 +1123,10 @@ export default function VendorPortal({
                       </label>
                       <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
                         {ParkingSlots.map(sl => {
-                          const taken = occupiedSlotsForBooking.includes(sl);
+                          const override = slotOverrides.find(o => o.date === deliveryDate && o.session === session && o.slotCode === sl);
+                          const isForceUnblocked = override?.status === 'UNBLOCKED';
+                          const isOccupied = occupiedSlotsForBooking.includes(sl); // includes manually BLOCKED
+                          const taken = isOccupied || (isSessionFull && !isForceUnblocked);
                           const isSelected = slotCode === sl;
                           
                           return (

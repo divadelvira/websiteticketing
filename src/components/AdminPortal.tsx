@@ -1,6 +1,9 @@
 import React, { useState, useMemo } from 'react';
-import { Ticket, DELIVERY_SESSIONS, ParkingSlots } from '../types';
-import { formatIndoDate } from '../utils/mockData';
+import { Ticket, DELIVERY_SESSIONS, ParkingSlots, SlotOverride } from '../types';
+  formatIndoDate,
+  getSessionLoad,
+  SESSION_LIMITS
+} from '../utils/mockData';
 import { 
   Lock, 
   Key, 
@@ -27,13 +30,19 @@ interface AdminPortalProps {
   onUpdateTicket: (updated: Ticket) => void;
   onCancelTicket: (ticketId: string) => void;
   simulatedTime: Date;
+  slotOverrides?: SlotOverride[];
+  onUpdateOverride?: (override: SlotOverride) => void;
+  onRemoveOverride?: (date: string, session: string, slotCode: string) => void;
 }
 
 export default function AdminPortal({
   tickets,
   onUpdateTicket,
   onCancelTicket,
-  simulatedTime
+  simulatedTime,
+  slotOverrides = [],
+  onUpdateOverride,
+  onRemoveOverride
 }: AdminPortalProps) {
   const { t, language } = useLanguage();
   // Login State
@@ -557,15 +566,17 @@ export default function AdminPortal({
         </div>
         <p className="text-[11px] text-slate-500 leading-normal">
           {t('Here is the parking dock layout (A01 - A10) for today', 'Berikut adalah layout sebaran parkir dock utama (A01 - A10) untuk tanggal hari ini')} <strong>{formatIndoDate(currentDateStrStr, language)}</strong>.
+          <br/>
+          <span className="text-amber-600 font-medium">Klik pada slot untuk memblokir manual atau memaksa buka slot (Force Unblock) untuk Override Admin.</span>
         </p>
 
         <div className="space-y-3.5 pt-2">
           {DELIVERY_SESSIONS.map((sess) => {
-            const occupiedOnThisSess = tickets.filter(
-              tk => tk.deliveryDate === currentDateStrStr && tk.status === 'ACTIVE'
-            ).flatMap(tk => tk.bookedSlots ? tk.bookedSlots.filter(s => s.session === sess.key).map(s => s.slotCode) : (tk.session === sess.key ? [tk.slotCode] : []));
+            const load = getSessionLoad(tickets, currentDateStrStr, sess.key, slotOverrides);
+            const isSessFull = load.availQty <= 0 || load.availItem <= 0 || load.availKoli <= 0 || load.availPo <= 0;
+            const occupiedCount = load.occupiedSlots.length;
             
-            const isSessFull = occupiedOnThisSess.length >= 10;
+
             
             return (
               <div key={sess.key} className="bg-slate-50 p-2.5 rounded-xl border border-slate-200/60">
@@ -574,22 +585,70 @@ export default function AdminPortal({
                   <span className={`text-[9px] font-mono font-extrabold px-1.5 py-0.2 rounded ${
                     isSessFull ? 'bg-rose-100 text-rose-800' : 'bg-indigo-100 text-indigo-800'
                   }`}>
-                    {occupiedOnThisSess.length}/10 {t('Slots Taken', 'Slot Terisi')}
+                    {occupiedCount}/10 {t('Slots Taken', 'Slot Terisi')}
                   </span>
                 </div>
                 
                 <div className="grid grid-cols-5 sm:grid-cols-10 gap-1">
                   {ParkingSlots.map(sl => {
-                    const taken = occupiedOnThisSess.includes(sl);
+                    // Check actual tickets to see if physically occupied
+                    const physicallyOccupied = tickets.filter(
+                      tk => tk.deliveryDate === currentDateStrStr && tk.status === 'ACTIVE'
+                    ).flatMap(tk => tk.bookedSlots ? tk.bookedSlots.filter(s => s.session === sess.key).map(s => s.slotCode) : (tk.session === sess.key ? [tk.slotCode] : [])).includes(sl);
+                    
+                    const override = slotOverrides.find(o => o.date === currentDateStrStr && o.session === sess.key && o.slotCode === sl);
+                    const isManualBlocked = override?.status === 'BLOCKED';
+                    const isForceUnblocked = override?.status === 'UNBLOCKED';
+                    
+                    // Admin UI Style
+                    let styleClass = 'bg-white text-slate-500 border border-slate-200 hover:border-slate-400 cursor-pointer';
+                    let titleText = t('Available', 'Slot Kosong');
+                    
+                    if (physicallyOccupied) {
+                      styleClass = 'bg-rose-100 text-rose-700 border border-rose-200 cursor-not-allowed';
+                      titleText = t('Occupied by Vendor', 'Diisi oleh Vendor');
+                    } else if (isManualBlocked) {
+                      styleClass = 'bg-slate-200 text-slate-600 border-2 border-dashed border-slate-400 cursor-pointer';
+                      titleText = t('Manually Blocked', 'Diblokir Manual');
+                    } else if (isForceUnblocked) {
+                      styleClass = 'bg-emerald-50 text-emerald-700 border-2 border-dashed border-emerald-400 cursor-pointer shadow-inner';
+                      titleText = t('Force Unblocked', 'Dibuka Paksa');
+                    } else if (isSessFull) {
+                      styleClass = 'bg-slate-100 text-slate-400 border border-slate-200 opacity-60 cursor-pointer';
+                      titleText = t('Auto-Blocked (Session Full)', 'Blokir Otomatis (Sesi Penuh)');
+                    }
+                    
+                    const handleSlotClick = () => {
+                      if (physicallyOccupied) return; // cannot override a slot that has a real ticket
+                      
+                      const action = window.prompt(
+                        `Slot ${sl} Sesi ${sess.label.split(' ')[0]}.\n` +
+                        `Status Saat Ini: ${titleText}\n\n` +
+                        `Ketik "BLOCK" untuk memblokir manual.\n` +
+                        `Ketik "UNBLOCK" untuk memaksa buka (Force Unblock) melampaui batas sesi.\n` +
+                        `Ketik "RESET" untuk mengembalikan ke status otomatis.`
+                      );
+                      
+                      if (!action) return;
+                      const actStr = action.trim().toUpperCase();
+                      
+                      if (actStr === 'BLOCK') {
+                        onUpdateOverride?.({ date: currentDateStrStr, session: sess.key, slotCode: sl, status: 'BLOCKED' });
+                      } else if (actStr === 'UNBLOCK') {
+                        onUpdateOverride?.({ date: currentDateStrStr, session: sess.key, slotCode: sl, status: 'UNBLOCKED' });
+                      } else if (actStr === 'RESET') {
+                        onRemoveOverride?.(currentDateStrStr, sess.key, sl);
+                      } else {
+                        alert('Perintah tidak valid. Gunakan BLOCK, UNBLOCK, atau RESET.');
+                      }
+                    };
+
                     return (
                       <div
                         key={sl}
-                        className={`py-1 text-center text-[10px] font-mono font-bold rounded ${
-                          taken 
-                            ? 'bg-rose-100 text-rose-700 border border-rose-200' 
-                            : 'bg-white text-slate-500 border border-slate-200'
-                        }`}
-                        title={taken ? t('Occupied', 'Slot Terisi') as string : t('Available', 'Slot Kosong') as string}
+                        onClick={handleSlotClick}
+                        className={`py-1 text-center text-[10px] font-mono font-bold rounded transition-all ${styleClass}`}
+                        title={titleText as string}
                       >
                         {sl}
                       </div>

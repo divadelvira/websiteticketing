@@ -1,4 +1,4 @@
-import { Ticket, BookedSlot, DeliverySession, DELIVERY_SESSIONS, ParkingSlots } from '../types';
+import { Ticket, BookedSlot, DeliverySession, DELIVERY_SESSIONS, ParkingSlots, SlotOverride } from '../types';
 
 export const INITIAL_TICKETS: Ticket[] = [
   {
@@ -195,7 +195,7 @@ export const SESSION_LIMITS = {
   po: 10
 };
 
-export function getSessionLoad(tickets: Ticket[], date: string, session: DeliverySession) {
+export function getSessionLoad(tickets: Ticket[], date: string, session: DeliverySession, slotOverrides: SlotOverride[] = []) {
   const activeTickets = tickets.filter(t => t.deliveryDate === date && t.status === 'ACTIVE');
   let usedQty = 0, usedItem = 0, usedKoli = 0, usedPo = 0;
   const occupiedSlots: string[] = [];
@@ -220,6 +220,14 @@ export function getSessionLoad(tickets: Ticket[], date: string, session: Deliver
     }
   }
 
+  // Add manually blocked slots from overrides
+  const blockedOverrides = slotOverrides.filter(o => o.date === date && o.session === session && o.status === 'BLOCKED');
+  for (const o of blockedOverrides) {
+    if (!occupiedSlots.includes(o.slotCode)) {
+      occupiedSlots.push(o.slotCode);
+    }
+  }
+
   return {
     usedQty, usedItem, usedKoli, usedPo,
     availQty: Math.max(0, SESSION_LIMITS.quantity - usedQty),
@@ -238,7 +246,8 @@ export function allocateBooking(
   reqQty: number,
   reqItem: number,
   reqKoli: number,
-  reqPo: number
+  reqPo: number,
+  slotOverrides: SlotOverride[] = []
 ): { success: boolean; allocations?: BookedSlot[]; message?: string; messageEn?: string } {
   let remQty = reqQty;
   let remItem = reqItem;
@@ -251,7 +260,7 @@ export function allocateBooking(
   if (startIndex === -1) return { success: false, message: "Sesi tidak valid", messageEn: "Invalid session" };
 
   // 1. Evaluate the starting session
-  const startLoad = getSessionLoad(tickets, date, startSession);
+  const startLoad = getSessionLoad(tickets, date, startSession, slotOverrides);
   if (startLoad.occupiedSlots.includes(selectedSlotCode)) {
     return { 
       success: false, 
@@ -260,10 +269,19 @@ export function allocateBooking(
     };
   }
 
-  const startAllocQty = Math.min(remQty, startLoad.availQty);
-  const startAllocItem = Math.min(remItem, startLoad.availItem);
-  const startAllocKoli = Math.min(remKoli, startLoad.availKoli);
-  const startAllocPo = Math.min(remPo, startLoad.availPo);
+  const startOverride = slotOverrides.find(o => o.date === date && o.session === startSession && o.slotCode === selectedSlotCode);
+  const isStartForceUnblocked = startOverride?.status === 'UNBLOCKED';
+
+  // If force unblocked, pretend we have at least a full session's worth of capacity just for this allocation
+  const startCapQty = isStartForceUnblocked ? Math.max(startLoad.availQty, SESSION_LIMITS.quantityAmount) : startLoad.availQty;
+  const startCapItem = isStartForceUnblocked ? Math.max(startLoad.availItem, SESSION_LIMITS.itemAmount) : startLoad.availItem;
+  const startCapKoli = isStartForceUnblocked ? Math.max(startLoad.availKoli, SESSION_LIMITS.koliAmount) : startLoad.availKoli;
+  const startCapPo = isStartForceUnblocked ? Math.max(startLoad.availPo, SESSION_LIMITS.poAmount) : startLoad.availPo;
+
+  const startAllocQty = Math.min(remQty, startCapQty);
+  const startAllocItem = Math.min(remItem, startCapItem);
+  const startAllocKoli = Math.min(remKoli, startCapKoli);
+  const startAllocPo = Math.min(remPo, startCapPo);
 
   // Check if it spills over
   const willSpillOver = 
@@ -306,8 +324,9 @@ export function allocateBooking(
   for (let i = startIndex + 1; i < DELIVERY_SESSIONS.length; i++) {
     if (remQty <= 0 && remItem <= 0 && remKoli <= 0 && remPo <= 0) break;
 
-    const sessKey = DELIVERY_SESSIONS[i].key;
-    const load = getSessionLoad(tickets, date, sessKey);
+    const sess = DELIVERY_SESSIONS[i];
+    const sessKey = sess.key;
+    const load = getSessionLoad(tickets, date, sess.key, slotOverrides);
     const requiredSlot = 'A01'; // MUST be A01 for spill-overs
 
     if (load.occupiedSlots.includes(requiredSlot)) {
@@ -318,10 +337,18 @@ export function allocateBooking(
       };
     }
 
-    const allocQty = Math.min(remQty, load.availQty);
-    const allocItem = Math.min(remItem, load.availItem);
-    const allocKoli = Math.min(remKoli, load.availKoli);
-    const allocPo = Math.min(remPo, load.availPo);
+    const override = slotOverrides.find(o => o.date === date && o.session === sess.key && o.slotCode === 'A01');
+    const isForceUnblocked = override?.status === 'UNBLOCKED';
+
+    const capQty = isForceUnblocked ? Math.max(load.availQty, SESSION_LIMITS.quantityAmount) : load.availQty;
+    const capItem = isForceUnblocked ? Math.max(load.availItem, SESSION_LIMITS.itemAmount) : load.availItem;
+    const capKoli = isForceUnblocked ? Math.max(load.availKoli, SESSION_LIMITS.koliAmount) : load.availKoli;
+    const capPo = isForceUnblocked ? Math.max(load.availPo, SESSION_LIMITS.poAmount) : load.availPo;
+
+    const allocQty = Math.min(remQty, capQty);
+    const allocItem = Math.min(remItem, capItem);
+    const allocKoli = Math.min(remKoli, capKoli);
+    const allocPo = Math.min(remPo, capPo);
 
     allocations.push({
       session: sessKey,

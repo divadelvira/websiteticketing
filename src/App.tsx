@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Ticket } from './types';
+import { Ticket, SlotOverride } from './types';
 import { INITIAL_TICKETS } from './utils/mockData';
 import HeaderSimulasi from './components/HeaderSimulasi';
 import VendorPortal from './components/VendorPortal';
@@ -8,6 +8,7 @@ import { Layers, Shield, Warehouse } from 'lucide-react';
 import { useLanguage } from './contexts/LanguageContext';
 
 const LOCAL_STORAGE_KEY = 'warehouse_shipping_tickets_v1';
+const OVERRIDES_STORAGE_KEY = 'warehouse_shipping_overrides_v1';
 
 export default function App() {
   const { t } = useLanguage();
@@ -24,6 +25,18 @@ export default function App() {
     return INITIAL_TICKETS;
   });
 
+  const [slotOverrides, setSlotOverrides] = useState<SlotOverride[]>(() => {
+    try {
+      const stored = localStorage.getItem(OVERRIDES_STORAGE_KEY);
+      if (stored) {
+        return JSON.parse(stored);
+      }
+    } catch (e) {
+      console.warn('Gagal membaca overrides dari localStorage.', e);
+    }
+    return [];
+  });
+
   // 2. Simulated Clock state - default is Saturday June 13, 2026 08:00 WIB
   const [simulatedTime, setSimulatedTime] = useState<Date>(() => {
     return new Date('2026-06-13T08:00:00');
@@ -36,10 +49,24 @@ export default function App() {
   useEffect(() => {
     try {
       localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(tickets));
+      localStorage.setItem(OVERRIDES_STORAGE_KEY, JSON.stringify(slotOverrides));
     } catch (e) {
       console.error('Gagal menulis data ke localStorage.', e);
     }
-  }, [tickets]);
+  }, [tickets, slotOverrides]);
+
+  const handleUpdateOverride = (override: SlotOverride) => {
+    setSlotOverrides(prev => {
+      // Remove any existing override for the same date/session/slot
+      const filtered = prev.filter(o => !(o.date === override.date && o.session === override.session && o.slotCode === override.slotCode));
+      // If we are passing null or something to remove, we could handle it, but here we just add the new override
+      return [...filtered, override];
+    });
+  };
+
+  const handleRemoveOverride = (date: string, session: string, slotCode: string) => {
+    setSlotOverrides(prev => prev.filter(o => !(o.date === date && o.session === session && o.slotCode === slotCode)));
+  };
 
   // Translate simulatedTime into YYYY-MM-DD string
   const simulatedDateStr = useMemo(() => {
@@ -158,6 +185,7 @@ export default function App() {
             onUpdateTicket={handleUpdateTicket}
             onCancelTicket={handleForceCancelTicket}
             simulatedTime={simulatedTime}
+            slotOverrides={slotOverrides}
           />
         ) : (
           /* SISI ADMIN GUDANG */
@@ -166,6 +194,9 @@ export default function App() {
             onUpdateTicket={handleUpdateTicket}
             onCancelTicket={handleForceCancelTicket}
             simulatedTime={simulatedTime}
+            slotOverrides={slotOverrides}
+            onUpdateOverride={handleUpdateOverride}
+            onRemoveOverride={handleRemoveOverride}
           />
         )}
 

@@ -39,3 +39,10 @@ export const DELIVERY_SESSIONS: { key: DeliverySession; label: string; index: nu
 ];
 
 export const ParkingSlots = ['A01', 'A02', 'A03', 'A04', 'A05', 'A06', 'A07', 'A08', 'A09', 'A10'];
+
+export interface SlotOverride {
+  date: string;
+  session: DeliverySession;
+  slotCode: string;
+  status: 'BLOCKED' | 'UNBLOCKED';
+}
