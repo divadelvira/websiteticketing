@@ -441,9 +441,9 @@ export default function VendorPortal({
                             <span>{formatIndoDate(tk.deliveryDate)}</span>
                             <span className="text-slate-300">&bull;</span>
                             <Clock className="w-3.5 h-3.5 text-slate-400" />
-                            <span>{language === 'en' ? 'Session:' : 'Sesi:'} {tk.session}</span>
+                            <span>{language === 'en' ? 'Session:' : 'Sesi:'} {tk.bookedSlots ? tk.bookedSlots.map(s => s.session.split('-')[0]).join(', ') : tk.session}</span>
                             <span className="text-slate-300">&bull;</span>
-                            <span className="bg-slate-200 text-slate-700 px-1.5 py-0.2 rounded font-bold font-mono text-[10px]">{language === 'en' ? 'Slot' : 'Slot'} {tk.slotCode}</span>
+                            <span className="bg-slate-200 text-slate-700 px-1.5 py-0.2 rounded font-bold font-mono text-[10px]">{language === 'en' ? 'Slot' : 'Slot'} {tk.bookedSlots ? tk.bookedSlots.map(s => s.slotCode).join(', ') : tk.slotCode}</span>
                           </div>
                         </div>
 
@@ -490,9 +490,10 @@ export default function VendorPortal({
                       <button
                         id="btn-cancel-ticket"
                         onClick={() => {
+                          const slotsStr = activeDetailedTicket.bookedSlots ? activeDetailedTicket.bookedSlots.map(s => s.slotCode).join(', ') : activeDetailedTicket.slotCode;
                           const confirmMsg = language === 'en' 
-                            ? `Are you sure you want to cancel this Delivery Ticket Booking?\nThis action is final and slot ${activeDetailedTicket.slotCode} will be released back to the public pool.` 
-                            : `Apakah Anda yakin ingin membatalkan Booking Tiket Pengiriman ini?\nTindakan ini bersifat final dan slot parkir ${activeDetailedTicket.slotCode} akan dikembalikan ke publik.`;
+                            ? `Are you sure you want to cancel this Delivery Ticket Booking?\nThis action is final and slot ${slotsStr} will be released back to the public pool.` 
+                            : `Apakah Anda yakin ingin membatalkan Booking Tiket Pengiriman ini?\nTindakan ini bersifat final dan slot parkir ${slotsStr} akan dikembalikan ke publik.`;
                           if (confirm(confirmMsg)) {
                             onCancelTicket(activeDetailedTicket.id);
                             alert(language === 'en' ? 'Ticket cancelled successfully.' : 'Tiket berhasil dibatalkan.');
@@ -570,14 +571,14 @@ export default function VendorPortal({
                     
                     <div>
                       <p className="text-[10px] text-slate-400 font-normal">{language === 'en' ? 'Time Window' : 'Sesi Jendela Waktu'}</p>
-                      <p className="text-slate-800 font-bold text-sm">{activeDetailedTicket.session} WIB</p>
+                      <p className="text-slate-800 font-bold text-sm">{activeDetailedTicket.bookedSlots ? activeDetailedTicket.bookedSlots.map(s => s.session.split('-')[0]).join(', ') : activeDetailedTicket.session} WIB</p>
                     </div>
 
                     <div>
                       <p className="text-[10px] text-slate-400 font-normal">{language === 'en' ? 'Selected Slot' : 'Lokasi Slot Terpilih'}</p>
-                      <div className="flex items-center gap-1.5 mt-0.5">
+                      <div className="flex flex-wrap items-center gap-1.5 mt-0.5">
                         <span className="bg-indigo-600 text-white font-mono font-black px-2.5 py-1 rounded text-xs select-all">
-                          {language === 'en' ? 'SLOT' : 'SLOT'} {activeDetailedTicket.slotCode}
+                          {language === 'en' ? 'SLOT' : 'SLOT'} {activeDetailedTicket.bookedSlots ? activeDetailedTicket.bookedSlots.map(s => s.slotCode).join(', ') : activeDetailedTicket.slotCode}
                         </span>
                         <span className="text-[10px] text-slate-500 italic font-medium">{language === 'en' ? '(Bring this for check-in)' : '(Bawa tiket ini saat check-in)'}</span>
                       </div>
@@ -890,13 +891,13 @@ export default function VendorPortal({
                       </div>
                       <div>
                         <p className="text-[9px] text-slate-400 font-bold">{language === 'en' ? 'OPERATIONAL SESSION' : 'SESI OPERASIONAL'}</p>
-                        <p className="font-bold text-slate-800 tracking-tight">{latestCreatedTicket.session} WIB</p>
+                        <p className="font-bold text-slate-800 tracking-tight">{latestCreatedTicket.bookedSlots ? latestCreatedTicket.bookedSlots.map(s => s.session.split('-')[0]).join(', ') : latestCreatedTicket.session} WIB</p>
                       </div>
                     </div>
 
                     <div className="bg-indigo-600 text-white rounded-xl p-3 text-center space-y-0.5 border border-indigo-750">
                       <p className="text-[9px] opacity-80 uppercase font-black tracking-widest font-mono">{language === 'en' ? 'SELECTED DOCK SLOT' : 'DOCK PARKIR TERPILIH'}</p>
-                      <p className="text-xl font-black font-mono tracking-wider">{language === 'en' ? 'SLOT' : 'SLOT'} {latestCreatedTicket.slotCode}</p>
+                      <p className="text-xl font-black font-mono tracking-wider">{language === 'en' ? 'SLOT' : 'SLOT'} {latestCreatedTicket.bookedSlots ? latestCreatedTicket.bookedSlots.map(s => s.slotCode).join(', ') : latestCreatedTicket.slotCode}</p>
                     </div>
 
                     <div className="pt-2 text-[10px] text-slate-400 flex flex-wrap justify-between">
