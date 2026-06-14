@@ -17,6 +17,7 @@ export interface Ticket {
   itemAmount: number;
   quantityAmount: number;
   goodsDescription?: string;
+  adminRemark?: string;
   deliveryDate: string; // YYYY-MM-DD
   
   // Legacy fields mapped to first slot or single booking

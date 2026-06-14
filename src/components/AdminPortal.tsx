@@ -60,6 +60,10 @@ export default function AdminPortal({
   const [editingTicketId, setEditingTicketId] = useState<string | null>(null);
   const [editingPicName, setEditingPicName] = useState('');
 
+  // Editing Remarks States
+  const [editingRemarkId, setEditingRemarkId] = useState<string | null>(null);
+  const [editingRemarkText, setEditingRemarkText] = useState('');
+
   // Handle Login Authentication
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
@@ -128,6 +132,11 @@ export default function AdminPortal({
         if (tMonth !== selectedMonth) return false;
       }
 
+      // Date filter matching
+      if (adminSearch.match(/^\d{4}-\d{2}-\d{2}$/)) {
+        // If they type a date in search, use it (optional, but handling via search is harder). Let's do a dedicated input later.
+      }
+
       // Search matching (Ticket ID, Vendor Name, PIC Name, Email)
       if (adminSearch.trim()) {
         const query = adminSearch.toLowerCase();
@@ -137,8 +146,9 @@ export default function AdminPortal({
         const emailMatch = t.email.toLowerCase().includes(query);
         const slotStr = t.bookedSlots ? t.bookedSlots.map(s => s.slotCode).join(', ') : t.slotCode;
         const slotMatch = slotStr.toLowerCase().includes(query);
+        const remarkMatch = t.adminRemark ? t.adminRemark.toLowerCase().includes(query) : false;
         
-        return idMatch || vendorMatch || picMatch || emailMatch || slotMatch;
+        return idMatch || vendorMatch || picMatch || emailMatch || slotMatch || remarkMatch || t.deliveryDate === adminSearch.trim();
       }
 
       return true;
@@ -219,6 +229,20 @@ export default function AdminPortal({
   const startEditingPic = (ticket: Ticket) => {
     setEditingTicketId(ticket.id);
     setEditingPicName(ticket.picName);
+  };
+
+  // Handle saving inline remark edit
+  const saveRemarkChange = (id: string) => {
+    const tk = tickets.find(t => t.id === id);
+    if (tk) {
+      onUpdateTicket({ ...tk, adminRemark: editingRemarkText.trim() || undefined });
+    }
+    setEditingRemarkId(null);
+  };
+
+  const startEditingRemark = (tk: Ticket) => {
+    setEditingRemarkId(tk.id);
+    setEditingRemarkText(tk.adminRemark || '');
   };
 
   const savePicChange = (ticketId: string) => {
@@ -700,6 +724,21 @@ export default function AdminPortal({
               </select>
             </div>
 
+            {/* Exact Date Filter */}
+            <div className="flex items-center gap-1 bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1.5 shrink-0">
+              <Calendar className="w-3.5 h-3.5 text-slate-400" />
+              <input
+                type="date"
+                value={adminSearch.match(/^\d{4}-\d{2}-\d{2}$/) ? adminSearch : ''}
+                onChange={(e) => {
+                  setAdminSearch(e.target.value);
+                  setSelectedMonth('ALL'); // Reset month if picking exact date
+                }}
+                className="bg-transparent text-xs font-semibold focus:outline-none text-slate-700 font-sans pr-1"
+                title="Filter berdasarkan Tanggal Spesifik"
+              />
+            </div>
+
           </div>
 
           {/* Export to CSV Trigger Button */}
@@ -734,6 +773,7 @@ export default function AdminPortal({
                   <th className="px-4.5 py-3">{t('Dock/Slot', 'Dock/Slot')}</th>
                   <th className="px-4.5 py-3">{t('Vendor / PIC', 'Vendor / PIC')}</th>
                   <th className="px-4.5 py-3 text-right">{t('Volumetrik Cargo', 'Cargo Volumetric')}</th>
+                  <th className="px-4.5 py-3">{t('Admin Remark', 'Catatan Admin')}</th>
                   <th className="px-4.5 py-3 text-center">{t('Status', 'Status')}</th>
                   <th className="px-4.5 py-3 text-right">{t('Tindakan Admin', 'Admin Actions')}</th>
                 </tr>
@@ -837,6 +877,54 @@ export default function AdminPortal({
                       <td className="px-4.5 py-3.5 text-right whitespace-nowrap">
                         <span className="font-bold text-slate-900 block font-mono text-xs">{t.quantityAmount.toLocaleString()} Pcs</span>
                         <span className="text-[10px] text-slate-400 font-mono block mt-0.5">{t.koliAmount} Koli / {t.poAmount} PO</span>
+                      </td>
+
+                      {/* Remarks column */}
+                      <td className="px-4.5 py-3.5 max-w-[150px]">
+                        {editingRemarkId === t.id ? (
+                          <div className="flex flex-col gap-1.5">
+                            <textarea
+                              rows={2}
+                              value={editingRemarkText}
+                              onChange={(e) => setEditingRemarkText(e.target.value)}
+                              className="bg-white border border-indigo-400 rounded px-2 py-1 text-slate-800 focus:outline-none text-[10px] w-full resize-none shadow-sm"
+                              placeholder="Tambah catatan..."
+                            />
+                            <div className="flex items-center gap-1">
+                              <button
+                                onClick={() => saveRemarkChange(t.id)}
+                                className="bg-indigo-600 hover:bg-indigo-500 text-white font-bold px-2 py-0.5 rounded transition text-[9px]"
+                              >
+                                Simpan
+                              </button>
+                              <button
+                                onClick={() => setEditingRemarkId(null)}
+                                className="bg-slate-300 hover:bg-slate-200 text-slate-700 font-bold px-2 py-0.5 rounded transition text-[9px]"
+                              >
+                                Batal
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="group relative">
+                            {t.adminRemark ? (
+                              <p className="text-[10px] text-slate-600 italic line-clamp-3">
+                                "{t.adminRemark}"
+                              </p>
+                            ) : (
+                              <p className="text-[10px] text-slate-400 italic">
+                                -- Kosong --
+                              </p>
+                            )}
+                            <button
+                              onClick={() => startEditingRemark(t)}
+                              className="absolute -right-2 -top-2 opacity-0 group-hover:opacity-100 transition text-indigo-600 hover:text-indigo-800 bg-white shadow-sm border border-slate-100 rounded-full p-1"
+                              title="Edit Catatan"
+                            >
+                              <Edit3 className="w-3 h-3" />
+                            </button>
+                          </div>
+                        )}
                       </td>
 
                       {/* Status badge */}
