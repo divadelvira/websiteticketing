@@ -1,8 +1,9 @@
 import React, { useState, useMemo } from 'react';
 import { Ticket, DELIVERY_SESSIONS, ParkingSlots, SlotOverride } from '../types';
-  formatIndoDate,
+import { 
+formatIndoDate,
   getSessionLoad,
-  SESSION_LIMITS
+  SESSION_LIMITS,
 } from '../utils/mockData';
 import { 
   Lock, 
