@@ -76,6 +76,22 @@ export default function App() {
     return `${y}-${m}-${d}`;
   }, [simulatedTime]);
 
+  // Sweep past active tickets to COMPLETED
+  useEffect(() => {
+    let swept = false;
+    const sweptTickets = tickets.map(t => {
+      if (t.status === 'ACTIVE' && t.deliveryDate < simulatedDateStr) {
+        swept = true;
+        return { ...t, status: 'COMPLETED' as const };
+      }
+      return t;
+    });
+    
+    if (swept) {
+      setTickets(sweptTickets);
+    }
+  }, [simulatedDateStr, tickets]);
+
   // Calculate dynamic active metrics for today of simulated time
   const totalSlotsOccupiedToday = useMemo(() => {
     return tickets

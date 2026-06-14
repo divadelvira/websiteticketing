@@ -447,9 +447,11 @@ export default function VendorPortal({
                             <span className={`px-2 py-0.5 text-[10px] font-bold rounded-full ${
                               tk.status === 'ACTIVE' 
                                 ? 'bg-emerald-100 text-emerald-800' 
-                                : 'bg-rose-100 text-rose-800'
+                                : tk.status === 'COMPLETED'
+                                  ? 'bg-blue-100 text-blue-800'
+                                  : 'bg-rose-100 text-rose-800'
                             }`}>
-                              {tk.status === 'ACTIVE' ? (language === 'en' ? 'Active' : 'Aktif') : (language === 'en' ? 'Cancelled' : 'Dibatalkan')}
+                              {tk.status === 'ACTIVE' ? (language === 'en' ? 'Active' : 'Aktif') : tk.status === 'COMPLETED' ? (language === 'en' ? 'Completed' : 'Selesai') : (language === 'en' ? 'Cancelled' : 'Dibatalkan')}
                             </span>
                           </div>
                           <div className="text-xs text-slate-600 font-medium">

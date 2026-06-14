@@ -27,7 +27,7 @@ export interface Ticket {
   bookedSlots?: BookedSlot[];
 
   createdAt: string;
-  status: 'ACTIVE' | 'CANCELLED';
+  status: 'ACTIVE' | 'CANCELLED' | 'COMPLETED';
 }
 
 export type DeliverySession = '08:00-09:00' | '09:00-10:00' | '13:00-14:00' | '14:00-15:00';

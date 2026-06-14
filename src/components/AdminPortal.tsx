@@ -743,16 +743,16 @@ export default function AdminPortal({
                   const isEditing = editingTicketId === t.id;
                   
                   return (
-                    <tr 
-                      key={t.id} 
-                      id={`admin-row-${t.id}`}
-                      className={`hover:bg-slate-50 transition ${t.status === 'CANCELLED' ? 'bg-slate-50/50 opacity-70' : ''}`}
-                    >
-                      {/* Ticket unique code */}
-                      <td className="px-4.5 py-3.5">
-                        <span className="font-mono font-bold text-slate-900 block select-all">{t.id}</span>
-                        <span className="text-[10px] text-slate-400 font-mono italic block mt-0.5 select-none font-normal">Reg: {new Date(t.createdAt).toLocaleDateString()}</span>
-                      </td>
+                      <tr 
+                        key={t.id} 
+                        id={`admin-row-${t.id}`}
+                        className={`hover:bg-slate-50 transition ${t.status === 'CANCELLED' ? 'bg-slate-50/50 opacity-70' : ''} ${t.status === 'COMPLETED' ? 'bg-blue-50/30' : ''}`}
+                      >
+                        {/* Ticket unique code */}
+                        <td className="px-4.5 py-3.5">
+                          <span className="font-mono font-bold text-slate-900 block select-all">{t.id}</span>
+                          <span className="text-[10px] text-slate-400 font-mono italic block mt-0.5 select-none font-normal">Reg: {new Date(t.createdAt).toLocaleDateString()}</span>
+                        </td>
 
                       {/* Schedule info */}
                       <td className="px-4.5 py-3.5">
@@ -771,7 +771,9 @@ export default function AdminPortal({
                         <span className={`font-mono font-black text-[11px] px-2.5 py-1 rounded inline-block ${
                           t.status === 'ACTIVE' 
                             ? 'bg-indigo-600 text-white shadow-sm' 
-                            : 'bg-slate-200 text-slate-500'
+                            : t.status === 'COMPLETED'
+                              ? 'bg-blue-600 text-white shadow-sm'
+                              : 'bg-slate-200 text-slate-500'
                         }`}>
                           {t.bookedSlots ? t.bookedSlots.map(s => s.slotCode).join(', ') : t.slotCode}
                         </span>
@@ -842,12 +844,19 @@ export default function AdminPortal({
                         <span className={`px-2.5 py-0.5 text-[10px] font-bold rounded-full inline-flex items-center gap-1 ${
                           t.status === 'ACTIVE'
                             ? 'bg-emerald-100 text-emerald-800'
-                            : 'bg-rose-100 text-rose-800'
+                            : t.status === 'COMPLETED'
+                              ? 'bg-blue-100 text-blue-800'
+                              : 'bg-rose-100 text-rose-800'
                         }`}>
                           {t.status === 'ACTIVE' ? (
                             <>
                               <CheckCircle className="w-3 h-3 text-emerald-600" />
                               <span>Aktif</span>
+                            </>
+                          ) : t.status === 'COMPLETED' ? (
+                            <>
+                              <CheckCircle className="w-3 h-3 text-blue-600" />
+                              <span>Selesai</span>
                             </>
                           ) : (
                             <>
@@ -870,6 +879,8 @@ export default function AdminPortal({
                             <Trash2 className="w-3.5 h-3.5" />
                             <span>Batal Paksa</span>
                           </button>
+                        ) : t.status === 'COMPLETED' ? (
+                          <span className="text-blue-500/80 font-bold text-[10px]">Telah Selesai</span>
                         ) : (
                           <span className="text-slate-400 italic text-[10px]">Slot Bebas</span>
                         )}
