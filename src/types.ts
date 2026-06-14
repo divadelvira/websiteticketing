@@ -16,6 +16,7 @@ export interface Ticket {
   koliAmount: number;
   itemAmount: number;
   quantityAmount: number;
+  goodsDescription?: string;
   deliveryDate: string; // YYYY-MM-DD
   
   // Legacy fields mapped to first slot or single booking

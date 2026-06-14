@@ -78,6 +78,7 @@ export default function VendorPortal({
   const [koliAmount, setKoliAmount] = useState<number | ''>('');
   const [itemAmount, setItemAmount] = useState<number | ''>('');
   const [quantityAmount, setQuantityAmount] = useState<number | ''>('');
+  const [goodsDescription, setGoodsDescription] = useState('');
   
   // Date and session choices
   const [deliveryDate, setDeliveryDate] = useState('');
@@ -197,6 +198,7 @@ export default function VendorPortal({
       koliAmount: Number(koliAmount),
       itemAmount: Number(itemAmount),
       quantityAmount: Number(quantityAmount),
+      goodsDescription: goodsDescription.trim() || undefined,
       deliveryDate,
       session: allocResult.allocations[0].session,
       slotCode: firstSlot,
@@ -216,6 +218,8 @@ export default function VendorPortal({
     setKoliAmount('');
     setItemAmount('');
     setQuantityAmount('');
+    setGoodsDescription('');
+    setDeliveryDate(minTimeStr);
   };
 
   // Open reschedule wizard
@@ -545,6 +549,18 @@ export default function VendorPortal({
                     <span className="text-[10px] text-slate-400 font-medium">{language === 'en' ? 'Pcs / Units' : 'Pcs / Unit'}</span>
                   </div>
                 </div>
+
+                {activeDetailedTicket.goodsDescription && (
+                  <div className="bg-amber-50/50 p-4 rounded-2xl border border-amber-100/50 text-xs">
+                    <p className="font-bold text-amber-800 flex items-center gap-1.5 mb-1">
+                      <Layers className="w-3.5 h-3.5" />
+                      {language === 'en' ? 'Goods Description' : 'Deskripsi Barang'}
+                    </p>
+                    <p className="text-amber-700/80 leading-relaxed">
+                      {activeDetailedTicket.goodsDescription}
+                    </p>
+                  </div>
+                )}
 
                 {/* Booking details info */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
@@ -1053,6 +1069,20 @@ export default function VendorPortal({
                           className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs focus:bg-white focus:ring-2 focus:ring-indigo-500 focus:outline-none text-slate-855 font-semibold"
                         />
                       </div>
+                    </div>
+                    
+                    <div>
+                      <label className="block text-slate-750 font-bold mb-1">
+                        {language === 'en' ? 'Goods Description / Notes' : 'Pesan Singkat / Deskripsi Barang'} <span className="text-slate-400 font-normal text-[10px]">(Opsional)</span>
+                      </label>
+                      <textarea
+                        id="input-goods-description"
+                        rows={2}
+                        placeholder={language === 'en' ? 'E.g., Fragile items, special handling required...' : 'Cth: Barang pecah belah, butuh forklift ekstra...'}
+                        value={goodsDescription}
+                        onChange={(e) => setGoodsDescription(e.target.value)}
+                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs focus:bg-white focus:ring-2 focus:ring-indigo-500 focus:outline-none text-slate-855 resize-none"
+                      />
                     </div>
                   </div>
 

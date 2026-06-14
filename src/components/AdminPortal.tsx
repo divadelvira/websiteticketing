@@ -823,6 +823,11 @@ export default function AdminPortal({
                           </div>
                         )}
                         <span className="text-[10px] text-slate-400 font-mono block truncate select-all">{t.email}</span>
+                        {t.goodsDescription && (
+                          <div className="mt-1.5 p-1.5 bg-amber-50/80 border border-amber-100 rounded text-[9px] text-amber-800 leading-tight" title={t.goodsDescription}>
+                            <span className="font-bold">Info:</span> <span className="line-clamp-2 italic">{t.goodsDescription}</span>
+                          </div>
+                        )}
                       </td>
 
                       {/* Quantities */}
