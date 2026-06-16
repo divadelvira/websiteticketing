@@ -241,7 +241,7 @@ export default function App() {
             onRemoveOverride={handleRemoveOverride}
           />
         )}
-
+        </div>
       </main>
 
       {/* 4. FOOTER */}
