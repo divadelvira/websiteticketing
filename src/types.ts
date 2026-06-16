@@ -29,6 +29,7 @@ export interface Ticket {
 
   createdAt: string;
   status: 'ACTIVE' | 'CANCELLED' | 'COMPLETED';
+  cancelledBy?: 'ADMIN' | 'VENDOR';
 }
 
 export type DeliverySession = '08:00-09:00' | '09:00-10:00' | '13:00-14:00' | '14:00-15:00';

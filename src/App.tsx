@@ -6,36 +6,48 @@ import VendorPortal from './components/VendorPortal';
 import AdminPortal from './components/AdminPortal';
 import { Layers, Shield, Warehouse } from 'lucide-react';
 import { useLanguage } from './contexts/LanguageContext';
-
-const LOCAL_STORAGE_KEY = 'warehouse_shipping_tickets_v1';
-const OVERRIDES_STORAGE_KEY = 'warehouse_shipping_overrides_v1';
+import { db } from './lib/firebase';
+import { collection, onSnapshot, doc, setDoc, deleteDoc } from 'firebase/firestore';
 
 export default function App() {
   const { t } = useLanguage();
-  // 1. Core database state initialized from browser localStorage or seed templates
-  const [tickets, setTickets] = useState<Ticket[]>(() => {
-    try {
-      const stored = localStorage.getItem(LOCAL_STORAGE_KEY);
-      if (stored) {
-        return JSON.parse(stored);
-      }
-    } catch (e) {
-      console.warn('Gagal membaca dari localStorage, beralih ke data awal simulasi.', e);
-    }
-    return INITIAL_TICKETS;
-  });
+  // 1. Core database state initialized from Firestore
+  const [tickets, setTickets] = useState<Ticket[]>([]);
+  const [slotOverrides, setSlotOverrides] = useState<SlotOverride[]>([]);
+  const [isFirebaseLoading, setIsFirebaseLoading] = useState(true);
 
-  const [slotOverrides, setSlotOverrides] = useState<SlotOverride[]>(() => {
-    try {
-      const stored = localStorage.getItem(OVERRIDES_STORAGE_KEY);
-      if (stored) {
-        return JSON.parse(stored);
-      }
-    } catch (e) {
-      console.warn('Gagal membaca overrides dari localStorage.', e);
-    }
-    return [];
-  });
+  useEffect(() => {
+    // Listen to tickets
+    const unsubscribeTickets = onSnapshot(collection(db, 'tickets'), (snapshot) => {
+      const fetchedTickets: Ticket[] = [];
+      snapshot.forEach((doc) => {
+        fetchedTickets.push({ id: doc.id, ...doc.data() } as Ticket);
+      });
+      // sort tickets by createdAt desc or you can leave it, we sort them anyway later
+      fetchedTickets.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+      setTickets(fetchedTickets);
+    }, (error) => {
+      console.error("Error fetching tickets from Firestore:", error);
+    });
+
+    // Listen to slotOverrides
+    const unsubscribeOverrides = onSnapshot(collection(db, 'slotOverrides'), (snapshot) => {
+      const fetchedOverrides: SlotOverride[] = [];
+      snapshot.forEach((doc) => {
+        fetchedOverrides.push(doc.data() as SlotOverride);
+      });
+      setSlotOverrides(fetchedOverrides);
+      setIsFirebaseLoading(false);
+    }, (error) => {
+      console.error("Error fetching overrides from Firestore:", error);
+      setIsFirebaseLoading(false);
+    });
+
+    return () => {
+      unsubscribeTickets();
+      unsubscribeOverrides();
+    };
+  }, []);
 
   // 2. Simulated Clock state - default is Saturday June 13, 2026 08:00 WIB
   const [simulatedTime, setSimulatedTime] = useState<Date>(() => {
@@ -45,27 +57,23 @@ export default function App() {
   // 3. Navigation View switcher: 'vendor' (Sisi Vendor Publik) or 'admin' (Sisi Admin Gudang)
   const [activePortal, setActivePortal] = useState<'vendor' | 'admin'>('vendor');
 
-  // Trigger LocalStorage write on state change
-  useEffect(() => {
+  const handleUpdateOverride = async (override: SlotOverride) => {
     try {
-      localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(tickets));
-      localStorage.setItem(OVERRIDES_STORAGE_KEY, JSON.stringify(slotOverrides));
+      // Create a unique deterministic ID for the override document
+      const docId = `${override.date}_${override.session}_${override.slotCode}`;
+      await setDoc(doc(db, 'slotOverrides', docId), override);
     } catch (e) {
-      console.error('Gagal menulis data ke localStorage.', e);
+      console.error("Error updating override in Firestore:", e);
     }
-  }, [tickets, slotOverrides]);
-
-  const handleUpdateOverride = (override: SlotOverride) => {
-    setSlotOverrides(prev => {
-      // Remove any existing override for the same date/session/slot
-      const filtered = prev.filter(o => !(o.date === override.date && o.session === override.session && o.slotCode === override.slotCode));
-      // If we are passing null or something to remove, we could handle it, but here we just add the new override
-      return [...filtered, override];
-    });
   };
 
-  const handleRemoveOverride = (date: string, session: string, slotCode: string) => {
-    setSlotOverrides(prev => prev.filter(o => !(o.date === date && o.session === session && o.slotCode === slotCode)));
+  const handleRemoveOverride = async (date: string, session: string, slotCode: string) => {
+    try {
+      const docId = `${date}_${session}_${slotCode}`;
+      await deleteDoc(doc(db, 'slotOverrides', docId));
+    } catch (e) {
+      console.error("Error removing override in Firestore:", e);
+    }
   };
 
   // Translate simulatedTime into YYYY-MM-DD string
@@ -76,56 +84,82 @@ export default function App() {
     return `${y}-${m}-${d}`;
   }, [simulatedTime]);
 
-  // Sweep past active tickets to COMPLETED
+  // Sweep past active tickets to COMPLETED in the background
   useEffect(() => {
-    let swept = false;
-    const sweptTickets = tickets.map(t => {
+    tickets.forEach(async (t) => {
       if (t.status === 'ACTIVE' && t.deliveryDate < simulatedDateStr) {
-        swept = true;
+        try {
+          await setDoc(doc(db, 'tickets', t.id), { ...t, status: 'COMPLETED' }, { merge: true });
+        } catch (e) {
+          console.error("Error sweeping ticket to COMPLETED:", e);
+        }
+      }
+    });
+  }, [simulatedDateStr, tickets]);
+
+  // Derived tickets for instant UI feedback (no roundtrip delay)
+  const derivedTickets = useMemo(() => {
+    return tickets.map(t => {
+      if (t.status === 'ACTIVE' && t.deliveryDate < simulatedDateStr) {
         return { ...t, status: 'COMPLETED' as const };
       }
       return t;
     });
-    
-    if (swept) {
-      setTickets(sweptTickets);
-    }
-  }, [simulatedDateStr, tickets]);
+  }, [tickets, simulatedDateStr]);
 
   // Calculate dynamic active metrics for today of simulated time
   const totalSlotsOccupiedToday = useMemo(() => {
-    return tickets
+    return derivedTickets
       .filter(t => t.deliveryDate === simulatedDateStr && t.status === 'ACTIVE')
       .reduce((sum, t) => sum + (t.bookedSlots ? t.bookedSlots.length : 1), 0);
-  }, [tickets, simulatedDateStr]);
+  }, [derivedTickets, simulatedDateStr]);
 
   const activeTicketsCount = useMemo(() => {
-    return tickets.filter(t => t.status === 'ACTIVE').length;
-  }, [tickets]);
+    return derivedTickets.filter(t => t.status === 'ACTIVE').length;
+  }, [derivedTickets]);
 
   // Core Mutation: Adding a new ticket
-  const handleAddTicket = (newTicket: Ticket) => {
-    setTickets(prev => [newTicket, ...prev]);
+  const handleAddTicket = async (newTicket: Ticket) => {
+    try {
+      await setDoc(doc(db, 'tickets', newTicket.id), newTicket);
+    } catch (e) {
+      console.error("Error adding ticket to Firestore:", e);
+    }
   };
 
   // Core Mutation: Editing a ticket (e.g. reschedule slot, editing PIC name)
-  const handleUpdateTicket = (updatedTicket: Ticket) => {
-    setTickets(prev => prev.map(t => t.id === updatedTicket.id ? updatedTicket : t));
+  const handleUpdateTicket = async (updatedTicket: Ticket) => {
+    try {
+      await setDoc(doc(db, 'tickets', updatedTicket.id), updatedTicket, { merge: true });
+    } catch (e) {
+      console.error("Error updating ticket in Firestore:", e);
+    }
   };
 
   // Core Mutation: Canceling a ticket (changes status to CANCELLED, liberating the slot)
-  const handleForceCancelTicket = (ticketId: string) => {
-    setTickets(prev => prev.map(t => {
-      if (t.id === ticketId) {
-        return { ...t, status: 'CANCELLED' };
+  const handleForceCancelTicket = async (ticketId: string, cancelledBy?: 'ADMIN' | 'VENDOR') => {
+    try {
+      const tk = tickets.find(t => t.id === ticketId);
+      if (tk) {
+        await setDoc(doc(db, 'tickets', ticketId), { ...tk, status: 'CANCELLED', cancelledBy }, { merge: true });
       }
-      return t;
-    }));
+    } catch (e) {
+      console.error("Error cancelling ticket in Firestore:", e);
+    }
   };
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col font-sans select-none antialiased">
       
+      {isFirebaseLoading && (
+        <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center">
+          <div className="bg-white p-6 rounded-2xl shadow-xl flex flex-col items-center gap-3">
+            <div className="w-8 h-8 border-4 border-orange-200 border-t-orange-600 rounded-full animate-spin"></div>
+            <p className="text-sm font-bold text-slate-700">Connecting to Cloud Database...</p>
+          </div>
+        </div>
+      )}
+
       {/* 1. TOP SIMULATION BAR */}
       <HeaderSimulasi 
         simulatedTime={simulatedTime} 
@@ -135,68 +169,60 @@ export default function App() {
       />
 
       {/* 2. CORPORATE HEADER */}
-      <header className="bg-white border-b border-slate-200 py-4.5 px-4 sm:px-6 lg:px-8 shadow-xs">
+      <header className="bg-white border-b border-slate-200 py-4 px-4 sm:px-6 lg:px-8 shadow-xs">
         <div className="max-w-7xl mx-auto flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           
           {/* Branding with custom Warehouse Icon */}
           <div className="flex items-center gap-3">
-            <div className="w-11 h-11 bg-orange-600 text-white rounded-2xl flex items-center justify-center shadow-md shrink-0">
-              <Warehouse className="w-6 h-6 text-white" />
+            <div className="w-10 h-10 bg-orange-600 text-white rounded-xl flex items-center justify-center shadow-md shrink-0">
+              <Warehouse className="w-5 h-5 text-white" />
             </div>
             <div>
-              <div className="flex items-center gap-1.5">
-                <span className="text-[10px] bg-orange-50 text-orange-700 font-extrabold uppercase px-2 py-0.5 rounded-full border border-orange-100 tracking-wider">
-                  STPG-V1
-                </span>
-                <span className="text-[10px] bg-blue-50 text-blue-700 font-extrabold uppercase px-2 py-0.5 rounded-full border border-blue-100 tracking-wider">
-                  Member of ASTRA
-                </span>
-              </div>
-              <h1 className="text-xl font-black tracking-tight text-slate-900 mt-0.5">
-                PT Triatra Sinergia Pratama
+              <h1 className="text-xl font-black tracking-tighter text-slate-900 leading-none">
+                WHTIX
               </h1>
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">
+                Warehouse Ticketing
+              </p>
             </div>
           </div>
 
-          {/* Dual portal switcher - styled beautifully like a native segmentation toggle */}
-          <div className="bg-slate-100 p-1 rounded-xl border border-slate-200/60 inline-flex items-center self-start sm:self-auto">
+          {/* Dual portal switcher - styled beautifully like native buttons */}
+          <div className="flex items-center gap-3 self-start sm:self-auto">
             <button
               id="switch-btn-vendor"
               onClick={() => setActivePortal('vendor')}
-              className={`px-4 py-2 rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
+              className={`px-6 py-2 rounded-lg text-sm font-bold transition flex items-center gap-1.5 cursor-pointer ${
                 activePortal === 'vendor'
-                  ? 'bg-slate-900 text-white shadow'
-                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/50'
+                  ? 'bg-orange-600 text-white shadow hover:bg-orange-700'
+                  : 'text-orange-600 bg-white border border-orange-600 hover:bg-orange-50'
               }`}
             >
-              <Layers className="w-4 h-4" />
-              <span>{t('Portal Vendor Publik', 'Public Vendor Portal')}</span>
+              <span>{t('Buat Tiket', 'Create Ticket')}</span>
             </button>
             
             <button
               id="switch-btn-admin"
               onClick={() => setActivePortal('admin')}
-              className={`px-4 py-2 rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
+              className={`px-6 py-2 rounded-lg text-sm font-bold transition flex items-center gap-1.5 cursor-pointer ${
                 activePortal === 'admin'
-                  ? 'bg-slate-900 text-white shadow'
-                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/50'
+                  ? 'bg-orange-600 text-white shadow hover:bg-orange-700'
+                  : 'text-orange-600 bg-white border border-orange-600 hover:bg-orange-50'
               }`}
             >
-              <Shield className="w-4 h-4" />
-              <span>{t('Portal Admin Gudang', 'Warehouse Admin Portal')}</span>
+              <span>{t('Admin', 'Admin')}</span>
             </button>
           </div>
-
         </div>
       </header>
 
-      {/* 3. MAIN WORKPLACE CONTAINER */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 py-6 sm:px-6 lg:px-8">
-        
-        {activePortal === 'vendor' ? (
+      {/* 3. MAIN CONTENT AREA */}
+      <main className="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8">
+        <div className="animate-in fade-in slide-in-from-bottom-2 duration-500">
+          {activePortal === 'vendor' ? (
           /* SISI VENDOR PUBLIK */
           <VendorPortal 
-            tickets={tickets}
+            tickets={derivedTickets}
             onAddTicket={handleAddTicket}
             onUpdateTicket={handleUpdateTicket}
             onCancelTicket={handleForceCancelTicket}
@@ -206,7 +232,7 @@ export default function App() {
         ) : (
           /* SISI ADMIN GUDANG */
           <AdminPortal 
-            tickets={tickets}
+            tickets={derivedTickets}
             onUpdateTicket={handleUpdateTicket}
             onCancelTicket={handleForceCancelTicket}
             simulatedTime={simulatedTime}
@@ -233,3 +259,4 @@ export default function App() {
     </div>
   );
 }
+

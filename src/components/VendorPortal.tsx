@@ -34,7 +34,7 @@ interface VendorPortalProps {
   tickets: Ticket[];
   onAddTicket: (ticket: Ticket) => void;
   onUpdateTicket: (updated: Ticket) => void;
-  onCancelTicket: (ticketId: string) => void;
+  onCancelTicket: (ticketId: string, cancelledBy?: 'ADMIN' | 'VENDOR') => void;
   simulatedTime: Date;
   slotOverrides?: SlotOverride[];
 }
@@ -308,47 +308,45 @@ export default function VendorPortal({
   return (
     <div className="space-y-6">
       
-      {/* Portal Greeting Banner */}
-      <div className="bg-slate-800 rounded-3xl p-6 sm:p-8 text-white relative overflow-hidden shadow-xl border border-slate-750">
-        <div className="absolute top-0 right-0 p-8 text-slate-700/30 font-bold text-7xl select-none hidden md:block">
-          DOCK
+      {/* Portal Greeting Banner - Restyled to match new UI Vibe */}
+      <div className="py-10 flex flex-col items-center text-center px-4">
+        <div className="w-16 h-16 bg-orange-100 text-orange-600 rounded-2xl flex items-center justify-center mb-6">
+          <svg xmlns="http://www.w3.org/2000/svg" className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M15 5v2m0 4v2m0 4v2M5 5a2 2 0 00-2 2v3a2 2 0 110 4v3a2 2 0 002 2h14a2 2 0 002-2v-3a2 2 0 110-4V7a2 2 0 00-2-2H5z" />
+          </svg>
         </div>
-        <div className="relative z-10 max-w-2xl">
-          <span className="bg-indigo-500/20 text-indigo-300 font-mono text-xs font-bold px-3 py-1 rounded-full border border-indigo-500/30 uppercase tracking-widest">
-            PORTAL VENDOR PUBLIK
-          </span>
-          <h1 className="text-3xl font-extrabold tracking-tight mt-3 text-slate-100">
-            {language === 'en' ? 'Warehouse Parking Booking & Management' : 'Booking & Manajemen Tiket Parkir Gudang'}
-          </h1>
-          <p className="mt-2 text-slate-300 text-sm leading-relaxed">
-            {language === 'en' ? 'Welcome to the main logistics scheduling system. Enter your load data, schedule your arrival at least D+2 in advance, and instantly secure your parking dock.' : 'Selamat datang di sistem manajemen penjadwalan logistik gudang utama. Masukkan data muatan, jadwalkan kedatangan Anda minimal H+2 ke depan, dan dapatkan alokasi dock parkir instan dengan aman.'}
-          </p>
-          <div className="mt-5 flex gap-3 flex-wrap">
-            <button
-              id="tab-btn-beranda"
-              onClick={() => { setActiveTab('beranda'); setLatestCreatedTicket(null); }}
-              className={`px-4.5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
-                activeTab === 'beranda'
-                  ? 'bg-white text-slate-900 shadow'
-                  : 'bg-slate-700/60 hover:bg-slate-700 text-slate-100'
-              }`}
-            >
-              <Search className="w-4 h-4" />
-              <span>Beranda & Lacak Tiket</span>
-            </button>
-            <button
-              id="tab-btn-pesan"
-              onClick={() => { setActiveTab('pesan'); setLatestCreatedTicket(null); }}
-              className={`px-4.5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
-                activeTab === 'pesan'
-                  ? 'bg-indigo-600 text-white shadow hover:bg-indigo-500'
-                  : 'bg-slate-700/60 hover:bg-slate-700 text-slate-100'
-              }`}
-            >
-              <Calendar className="w-4 h-4" />
-              <span>Formulir Pesan Tiket (H+2)</span>
-            </button>
-          </div>
+        <h1 className="text-4xl font-extrabold tracking-tight text-slate-900">
+          {language === 'en' ? 'Delivery Ticket' : 'Ticket Pengiriman'}
+        </h1>
+        <p className="mt-4 text-slate-500 max-w-lg mx-auto">
+          {language === 'en' ? 'Easily schedule your delivery using our booking system.' : 'Jadwalkan pengiriman Anda dengan mudah menggunakan sistem pemesanan kami.'}
+        </p>
+        <div className="mt-8 flex gap-4 flex-wrap justify-center">
+          <button
+            id="tab-btn-pesan"
+            onClick={() => { setActiveTab('pesan'); setLatestCreatedTicket(null); }}
+            className={`px-6 py-3 rounded-xl font-bold transition flex items-center gap-2 cursor-pointer ${
+              activeTab === 'pesan'
+                ? 'bg-orange-600 text-white shadow-lg shadow-orange-600/30 hover:bg-orange-700'
+                : 'bg-white border border-orange-600 text-orange-600 hover:bg-orange-50'
+            }`}
+          >
+            <Calendar className="w-5 h-5" />
+            <span>Buat Tiket Pengiriman</span>
+          </button>
+          
+          <button
+            id="tab-btn-beranda"
+            onClick={() => { setActiveTab('beranda'); setLatestCreatedTicket(null); }}
+            className={`px-6 py-3 rounded-xl font-bold transition flex items-center gap-2 cursor-pointer ${
+              activeTab === 'beranda'
+                ? 'bg-orange-600 text-white shadow-lg shadow-orange-600/30 hover:bg-orange-700'
+                : 'bg-white border border-orange-600 text-orange-600 hover:bg-orange-50'
+            }`}
+          >
+            <Search className="w-5 h-5" />
+            <span>Lacak Tiket</span>
+          </button>
         </div>
       </div>
 
@@ -360,33 +358,29 @@ export default function VendorPortal({
           <div className="lg:col-span-2 space-y-6">
             
             {/* Search Frame */}
-            <div className="bg-white rounded-3xl p-6 shadow-sm border border-slate-100">
-              <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2 mb-3">
-                <Search className="w-5 h-5 text-indigo-600" />
-                {language === 'en' ? 'Vendor Delivery Ticket Search' : 'Pencarian Tiket Pengiriman Vendor'}
+            <div className="bg-white rounded-2xl p-6 md:p-8 shadow-sm border border-slate-200">
+              <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2 mb-5">
+                <Search className="w-5 h-5 text-orange-600" />
+                {language === 'en' ? 'Track Ticket' : 'Lacak Tiket'}
               </h2>
-              <p className="text-xs text-slate-500 mb-4">
-                {language === 'en' ? 'Search your tickets using Ticket Code or Registered Email to view details, reschedule, or cancel your arrival.' : 'Cari tiket Anda menggunakan Kode Tiket atau Email Terdaftar untuk melihat detail, melakukan penjadwalan ulang, atau membatalkan kedatangan.'}
-              </p>
               
-              <form onSubmit={handleSearch} className="flex gap-2">
+              <form onSubmit={handleSearch} className="flex flex-col sm:flex-row gap-3">
                 <div className="relative flex-1">
-                  <Search className="w-5 h-5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
                   <input
                     id="input-vendor-search"
                     type="text"
-                    placeholder="Masukkan Kode Tiket (TKT-...) atau Email Vendor..."
+                    placeholder="Masukkan Ticket ID (contoh: WHS-JKT/0001/IV/2026)"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 pl-10 text-sm focus:bg-white focus:ring-2 focus:ring-indigo-500 focus:outline-none transition text-slate-800 placeholder-slate-400"
+                    className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm focus:bg-white focus:ring-2 focus:ring-orange-500 focus:outline-none transition text-slate-800 placeholder-slate-400"
                   />
                 </div>
                 <button
                   id="btn-vendor-search-submit"
                   type="submit"
-                  className="bg-slate-900 hover:bg-slate-800 text-white px-5 py-3 rounded-xl text-xs font-bold transition shrink-0 cursor-pointer"
+                  className="bg-orange-600 hover:bg-orange-700 text-white px-8 py-3 rounded-xl text-sm font-bold transition shrink-0 cursor-pointer"
                 >
-                  Cari Tiket
+                  Cari
                 </button>
               </form>
 
@@ -415,7 +409,7 @@ export default function VendorPortal({
                   {searchResults.length > 0 && (
                     <button 
                       onClick={() => { setHasSearched(false); setSearchQuery(''); setSearchResults([]); setSelectedTicketId(null); }}
-                      className="text-xs text-indigo-600 hover:underline font-bold cursor-pointer"
+                      className="text-xs text-orange-600 hover:underline font-bold cursor-pointer"
                     >
                       Bersihkan Hasil
                     </button>
@@ -437,7 +431,7 @@ export default function VendorPortal({
                         onClick={() => setSelectedTicketId(tk.id)}
                         className={`p-4 rounded-2xl border text-left transition cursor-pointer flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
                           selectedTicketId === tk.id
-                            ? 'bg-indigo-50/50 border-indigo-200 ring-1 ring-indigo-200'
+                            ? 'bg-orange-50/50 border-orange-200 ring-1 ring-orange-200'
                             : 'bg-slate-50 hover:bg-slate-100 border-slate-200/80'
                         }`}
                       >
@@ -471,7 +465,7 @@ export default function VendorPortal({
                         <div className="text-right shrink-0">
                           <p className="text-[10px] text-slate-400 uppercase font-bold">{language === 'en' ? 'TOTAL LOAD' : 'TOTAL MUATAN'}</p>
                           <p className="text-sm font-bold text-slate-800">{tk.quantityAmount} Qty <span className="text-slate-500 text-xs font-normal">({tk.koliAmount} Koli)</span></p>
-                          <span className="text-xs text-indigo-600 font-semibold hover:underline inline-flex items-center gap-0.5 mt-1">
+                          <span className="text-xs text-orange-600 font-semibold hover:underline inline-flex items-center gap-0.5 mt-1">
                             {language === 'en' ? 'View Detail \u2192' : 'Lihat Detail \u2192'}
                           </span>
                         </div>
@@ -516,7 +510,7 @@ export default function VendorPortal({
                             ? `Are you sure you want to cancel this Delivery Ticket Booking?\nThis action is final and slot ${slotsStr} will be released back to the public pool.` 
                             : `Apakah Anda yakin ingin membatalkan Booking Tiket Pengiriman ini?\nTindakan ini bersifat final dan slot parkir ${slotsStr} akan dikembalikan ke publik.`;
                           if (confirm(confirmMsg)) {
-                            onCancelTicket(activeDetailedTicket.id);
+                            onCancelTicket(activeDetailedTicket.id, 'VENDOR');
                             alert(language === 'en' ? 'Ticket cancelled successfully.' : 'Tiket berhasil dibatalkan.');
                           }
                         }}
@@ -591,9 +585,9 @@ export default function VendorPortal({
                     </div>
                   </div>
 
-                  <div className="space-y-2.5 bg-indigo-50/20 border border-indigo-500/10 rounded-2xl p-4">
-                    <h4 className="font-bold text-indigo-900 tracking-wider uppercase text-[10px] flex items-center gap-1">
-                      <MapPin className="w-3.5 h-3.5 text-indigo-600" />
+                  <div className="space-y-2.5 bg-orange-50/20 border border-orange-500/10 rounded-2xl p-4">
+                    <h4 className="font-bold text-orange-900 tracking-wider uppercase text-[10px] flex items-center gap-1">
+                      <MapPin className="w-3.5 h-3.5 text-orange-600" />
                       {language === 'en' ? 'ARRIVAL SCHEDULE ALLOCATION' : 'ALOKASI JADWAL KEDATANGAN'}
                     </h4>
                     
@@ -610,7 +604,7 @@ export default function VendorPortal({
                     <div>
                       <p className="text-[10px] text-slate-400 font-normal">{language === 'en' ? 'Selected Slot' : 'Lokasi Slot Terpilih'}</p>
                       <div className="flex flex-wrap items-center gap-1.5 mt-0.5">
-                        <span className="bg-indigo-600 text-white font-mono font-black px-2.5 py-1 rounded text-xs select-all">
+                        <span className="bg-orange-600 text-white font-mono font-black px-2.5 py-1 rounded text-xs select-all">
                           {language === 'en' ? 'SLOT' : 'SLOT'} {activeDetailedTicket.bookedSlots ? activeDetailedTicket.bookedSlots.map(s => s.slotCode).join(', ') : activeDetailedTicket.slotCode}
                         </span>
                         <span className="text-[10px] text-slate-500 italic font-medium">{language === 'en' ? '(Bring this for check-in)' : '(Bawa tiket ini saat check-in)'}</span>
@@ -635,7 +629,7 @@ export default function VendorPortal({
                     <button
                       id="btn-open-reschedule"
                       onClick={() => initiateReschedule(activeDetailedTicket)}
-                      className="bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 self-stretch md:self-auto justify-center cursor-pointer"
+                      className="bg-orange-600 hover:bg-orange-500 text-white px-4 py-2.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 self-stretch md:self-auto justify-center cursor-pointer"
                     >
                       <RotateCcw className="w-4 h-4" />
                       <span>{language === 'en' ? 'Request Reschedule' : 'Ajukan Reschedule'}</span>
@@ -690,7 +684,7 @@ export default function VendorPortal({
                                 setRescheduleDate(e.target.value);
                                 setRescheduleSlot(null);
                               }}
-                              className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 focus:ring-1 focus:ring-indigo-500 focus:outline-none text-white font-mono"
+                              className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 focus:ring-1 focus:ring-orange-500 focus:outline-none text-white font-mono"
                             />
                             <p className="text-[10px] text-slate-500 mt-1">{language === 'en' ? 'Today:' : 'Hari Ini:'} {formatIndoDate(currentDateStrFormatted, language)} ({language === 'en' ? 'D+2:' : 'H+2:'} {formatIndoDate(minBookingDate, language)})</p>
                           </div>
@@ -707,7 +701,7 @@ export default function VendorPortal({
                                 setRescheduleSession(e.target.value as DeliverySession);
                                 setRescheduleSlot(null);
                               }}
-                              className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 focus:ring-1 focus:ring-indigo-500 focus:outline-none text-white font-mono"
+                              className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 focus:ring-1 focus:ring-orange-500 focus:outline-none text-white font-mono"
                             >
                               {DELIVERY_SESSIONS.map(s => (
                                 <option key={s.key} value={s.key}>{s.label}</option>
@@ -770,7 +764,7 @@ export default function VendorPortal({
               
               <ul className="text-xs text-slate-600 space-y-3">
                 <li className="flex gap-2.5">
-                  <div className="w-5 h-5 bg-indigo-50 text-indigo-600 font-bold rounded-full flex items-center justify-center shrink-0 text-[11px]">
+                  <div className="w-5 h-5 bg-orange-50 text-orange-600 font-bold rounded-full flex items-center justify-center shrink-0 text-[11px]">
                     1
                   </div>
                   <div>
@@ -779,7 +773,7 @@ export default function VendorPortal({
                   </div>
                 </li>
                 <li className="flex gap-2.5">
-                  <div className="w-5 h-5 bg-indigo-50 text-indigo-600 font-bold rounded-full flex items-center justify-center shrink-0 text-[11px]">
+                  <div className="w-5 h-5 bg-orange-50 text-orange-600 font-bold rounded-full flex items-center justify-center shrink-0 text-[11px]">
                     2
                   </div>
                   <div>
@@ -788,7 +782,7 @@ export default function VendorPortal({
                   </div>
                 </li>
                 <li className="flex gap-2.5">
-                  <div className="w-5 h-5 bg-indigo-50 text-indigo-600 font-bold rounded-full flex items-center justify-center shrink-0 text-[11px]">
+                  <div className="w-5 h-5 bg-orange-50 text-orange-600 font-bold rounded-full flex items-center justify-center shrink-0 text-[11px]">
                     3
                   </div>
                   <div>
@@ -870,7 +864,7 @@ export default function VendorPortal({
                       </div>
                     </div>
 
-                    <div className="bg-indigo-600 text-white rounded-xl p-3 text-center space-y-0.5 border border-indigo-750">
+                    <div className="bg-orange-600 text-white rounded-xl p-3 text-center space-y-0.5 border border-orange-750">
                       <p className="text-[9px] opacity-80 uppercase font-black tracking-widest font-mono">{language === 'en' ? 'SELECTED DOCK SLOT' : 'DOCK PARKIR TERPILIH'}</p>
                       <p className="text-xl font-black font-mono tracking-wider">{language === 'en' ? 'SLOT' : 'SLOT'} {latestCreatedTicket.bookedSlots ? latestCreatedTicket.bookedSlots.map(s => s.slotCode).join(', ') : latestCreatedTicket.slotCode}</p>
                     </div>
@@ -894,7 +888,7 @@ export default function VendorPortal({
                   <button
                     id="btn-print-bill"
                     onClick={() => window.print()}
-                    className="bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs px-5 py-3 rounded-xl transition flex items-center justify-center gap-1.5 cursor-pointer"
+                    className="bg-orange-600 hover:bg-orange-500 text-white font-bold text-xs px-5 py-3 rounded-xl transition flex items-center justify-center gap-1.5 cursor-pointer"
                   >
                     <Printer className="w-4 h-4" />
                     <span>{language === 'en' ? 'Print PDF Ticket' : 'Cetak Tiket PDF'}</span>
@@ -926,7 +920,7 @@ export default function VendorPortal({
               /* The standard booking form structure */
               <div className="bg-white rounded-3xl p-6 shadow-sm border border-slate-100">
                 <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2 mb-3 border-b border-slate-100 pb-3">
-                  <Calendar className="w-5 h-5 text-indigo-600" />
+                  <Calendar className="w-5 h-5 text-orange-600" />
                   {language === 'en' ? 'Ticket Submission Form & Slot Allocation' : 'Formulir Pengajuan Tiket & Alokasi Slot Parkir'}
                 </h2>
 
@@ -961,7 +955,7 @@ export default function VendorPortal({
                             placeholder="nama@perusahaankamu.com"
                             value={email}
                             onChange={(e) => setEmail(e.target.value)}
-                            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 pl-9 text-xs focus:bg-white focus:ring-2 focus:ring-indigo-500 focus:outline-none text-slate-800 transition"
+                            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 pl-9 text-xs focus:bg-white focus:ring-2 focus:ring-orange-500 focus:outline-none text-slate-800 transition"
                           />
                         </div>
                       </div>
@@ -978,7 +972,7 @@ export default function VendorPortal({
                           placeholder="Contoh: PT Semesta Express Logistik"
                           value={vendorName}
                           onChange={(e) => setVendorName(e.target.value)}
-                          className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs focus:bg-white focus:ring-2 focus:ring-indigo-500 focus:outline-none text-slate-800 transition"
+                          className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs focus:bg-white focus:ring-2 focus:ring-orange-500 focus:outline-none text-slate-800 transition"
                         />
                       </div>
 
@@ -994,7 +988,7 @@ export default function VendorPortal({
                           placeholder="Masukkan nama lengkap supir / pengawas"
                           value={picName}
                           onChange={(e) => setPicName(e.target.value)}
-                          className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs focus:bg-white focus:ring-2 focus:ring-indigo-500 focus:outline-none text-slate-800 transition"
+                          className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs focus:bg-white focus:ring-2 focus:ring-orange-500 focus:outline-none text-slate-800 transition"
                         />
                       </div>
                     </div>
@@ -1020,7 +1014,7 @@ export default function VendorPortal({
                           placeholder="cth: 3"
                           value={poAmount}
                           onChange={(e) => setPoAmount(e.target.value === '' ? '' : Number(e.target.value))}
-                          className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs focus:bg-white focus:ring-2 focus:ring-indigo-500 focus:outline-none text-slate-850"
+                          className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs focus:bg-white focus:ring-2 focus:ring-orange-500 focus:outline-none text-slate-850"
                         />
                       </div>
 
@@ -1036,7 +1030,7 @@ export default function VendorPortal({
                           placeholder="cth: 24"
                           value={koliAmount}
                           onChange={(e) => setKoliAmount(e.target.value === '' ? '' : Number(e.target.value))}
-                          className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs focus:bg-white focus:ring-2 focus:ring-indigo-500 focus:outline-none text-slate-850"
+                          className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs focus:bg-white focus:ring-2 focus:ring-orange-500 focus:outline-none text-slate-850"
                         />
                       </div>
 
@@ -1052,7 +1046,7 @@ export default function VendorPortal({
                           placeholder="cth: 15"
                           value={itemAmount}
                           onChange={(e) => setItemAmount(e.target.value === '' ? '' : Number(e.target.value))}
-                          className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs focus:bg-white focus:ring-2 focus:ring-indigo-500 focus:outline-none text-slate-855"
+                          className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs focus:bg-white focus:ring-2 focus:ring-orange-500 focus:outline-none text-slate-855"
                         />
                       </div>
 
@@ -1068,7 +1062,7 @@ export default function VendorPortal({
                           placeholder="cth: 850"
                           value={quantityAmount}
                           onChange={(e) => setQuantityAmount(e.target.value === '' ? '' : Number(e.target.value))}
-                          className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs focus:bg-white focus:ring-2 focus:ring-indigo-500 focus:outline-none text-slate-855 font-semibold"
+                          className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs focus:bg-white focus:ring-2 focus:ring-orange-500 focus:outline-none text-slate-855 font-semibold"
                         />
                       </div>
                     </div>
@@ -1083,7 +1077,7 @@ export default function VendorPortal({
                         placeholder={language === 'en' ? 'E.g., Fragile items, special handling required...' : 'Cth: Barang pecah belah, butuh forklift ekstra...'}
                         value={goodsDescription}
                         onChange={(e) => setGoodsDescription(e.target.value)}
-                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs focus:bg-white focus:ring-2 focus:ring-indigo-500 focus:outline-none text-slate-855 resize-none"
+                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs focus:bg-white focus:ring-2 focus:ring-orange-500 focus:outline-none text-slate-855 resize-none"
                       />
                     </div>
                   </div>
@@ -1113,10 +1107,10 @@ export default function VendorPortal({
                               setDeliveryDate(e.target.value);
                               setSlotCode(null); // reset slot choice when date shifts
                             }}
-                            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 pl-9 text-xs focus:bg-white focus:ring-2 focus:ring-indigo-500 focus:outline-none text-slate-800 font-mono tracking-wider transition"
+                            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 pl-9 text-xs focus:bg-white focus:ring-2 focus:ring-orange-500 focus:outline-none text-slate-800 font-mono tracking-wider transition"
                           />
                         </div>
-                        <p className="text-[10px] text-indigo-600 mt-1.5 font-medium leading-relaxed">
+                        <p className="text-[10px] text-orange-600 mt-1.5 font-medium leading-relaxed">
                           Aturan pengiriman wajib H+2. Berdasarkan jam simulasi Anda, tanggal tercepat yang diperbolehkan adalah <strong>{formatIndoDate(minBookingDate)}</strong>.
                         </p>
                       </div>
@@ -1134,7 +1128,7 @@ export default function VendorPortal({
                             setSession(e.target.value as DeliverySession);
                             setSlotCode(null); // reset slot when session changes
                           }}
-                          className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs focus:bg-white focus:ring-2 focus:ring-indigo-500 focus:outline-none text-slate-800 tracking-tight transition"
+                          className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs focus:bg-white focus:ring-2 focus:ring-orange-500 focus:outline-none text-slate-800 tracking-tight transition"
                         >
                           {DELIVERY_SESSIONS.map((sess) => (
                             <option key={sess.key} value={sess.key}>
@@ -1149,7 +1143,7 @@ export default function VendorPortal({
                     </div>
 
                     {/* Manual Slot Selection */}
-                    <div className="bg-indigo-50/50 p-4 rounded-2xl border border-indigo-100/50 mt-4">
+                    <div className="bg-orange-50/50 p-4 rounded-2xl border border-orange-100/50 mt-4">
                       <label className="block text-xs font-bold text-slate-750 mb-2.5">
                         {language === 'en' ? 'Select Dock Parking Slot' : 'Pilih Slot Parkir Dock'} <span className="text-rose-500">*</span>
                       </label>
@@ -1171,8 +1165,8 @@ export default function VendorPortal({
                                 taken 
                                   ? 'bg-slate-200 text-slate-400 cursor-not-allowed opacity-60' 
                                   : isSelected 
-                                    ? 'bg-indigo-600 text-white shadow-md shadow-indigo-200 scale-105 border-2 border-indigo-600' 
-                                    : 'bg-white text-slate-700 border border-slate-200 hover:border-indigo-400 hover:bg-indigo-50'
+                                    ? 'bg-orange-600 text-white shadow-md shadow-orange-200 scale-105 border-2 border-orange-600' 
+                                    : 'bg-white text-slate-700 border border-slate-200 hover:border-orange-400 hover:bg-orange-50'
                               }`}
                             >
                               {sl}
@@ -1195,7 +1189,7 @@ export default function VendorPortal({
                     <button
                       id="btn-submit-booking-form"
                       type="submit"
-                      className={`px-6 py-3 rounded-xl text-xs font-black tracking-wide transition shadow cursor-pointer bg-indigo-600 hover:bg-indigo-500 text-white`}
+                      className={`px-6 py-3 rounded-xl text-xs font-black tracking-wide transition shadow cursor-pointer bg-orange-600 hover:bg-orange-500 text-white`}
                     >
                       Ajukan Pemesanan Tiket &rarr;
                     </button>
@@ -1217,7 +1211,7 @@ export default function VendorPortal({
               
               <div className="space-y-2 text-slate-400">
                 <p className="text-slate-200 border-b border-slate-800 pb-1.5">
-                  &bull; Waktu server: <span className="text-indigo-400">{simulatedTime.toISOString()}</span>
+                  &bull; Waktu server: <span className="text-orange-400">{simulatedTime.toISOString()}</span>
                 </p>
 
                 <p className="flex justify-between">
@@ -1252,7 +1246,7 @@ export default function VendorPortal({
                 </p>
                 <p className="flex justify-between">
                   <span>{language === 'en' ? 'Slot Status:' : 'Status Slot Parkir:'}</span>
-                  <span className="text-indigo-400 font-black">
+                  <span className="text-orange-400 font-black">
                     {language === 'en' ? 'Auto-Allocated' : 'Otomatis Dialokasikan'}
                   </span>
                 </p>
@@ -1288,3 +1282,4 @@ export default function VendorPortal({
     </div>
   );
 }
+

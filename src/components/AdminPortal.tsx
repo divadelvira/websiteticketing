@@ -29,7 +29,7 @@ import { useLanguage } from '../contexts/LanguageContext';
 interface AdminPortalProps {
   tickets: Ticket[];
   onUpdateTicket: (updated: Ticket) => void;
-  onCancelTicket: (ticketId: string) => void;
+  onCancelTicket: (ticketId: string, cancelledBy?: 'ADMIN' | 'VENDOR') => void;
   simulatedTime: Date;
   slotOverrides?: SlotOverride[];
   onUpdateOverride?: (override: SlotOverride) => void;
@@ -58,6 +58,12 @@ export default function AdminPortal({
 
   // Editing PIC States
   const [editingTicketId, setEditingTicketId] = useState<string | null>(null);
+  const [editingPicName, setEditingPicName] = useState('');
+  const [editingRemarkId, setEditingRemarkId] = useState<string | null>(null);
+  const [editingRemarkText, setEditingRemarkText] = useState('');
+
+  // UI States
+  const [selectedLiveSlotTicket, setSelectedLiveSlotTicket] = useState<Ticket | null>(null);
   const [editingPicName, setEditingPicName] = useState('');
 
   // Editing Remarks States
@@ -193,7 +199,11 @@ export default function AdminPortal({
     return `${y}-${m}`;
   }, [simulatedTime]);
 
-  const activeTodayCount = useMemo(() => {
+  const activeTicketsToday = useMemo(() => {
+    return tickets.filter(t => t.deliveryDate === currentDateStrStr && t.status === 'ACTIVE').length;
+  }, [tickets, currentDateStrStr]);
+
+  const physicalSlotsOccupied = useMemo(() => {
     return tickets
       .filter(t => t.deliveryDate === currentDateStrStr && t.status === 'ACTIVE')
       .reduce((sum, t) => sum + (t.bookedSlots ? t.bookedSlots.length : 1), 0);
@@ -201,17 +211,27 @@ export default function AdminPortal({
 
   // percentage of slots filled today (max 40 slots per day: 10 docks * 4 sessions = 40)
   const slotOccupancyPercent = useMemo(() => {
-    return Math.min(100, Math.round((activeTodayCount / 40) * 105) / 1.05); // Standard rounding calculation
-  }, [activeTodayCount]);
+    const blockedSlots = (slotOverrides || []).filter(o => o.date === currentDateStrStr && o.status === 'BLOCKED').length;
+    const totalTaken = physicalSlotsOccupied + blockedSlots;
+    return Math.min(100, Math.round((totalTaken / 40) * 105) / 1.05); // Standard rounding calculation
+  }, [physicalSlotsOccupied, slotOverrides, currentDateStrStr]);
 
   // total cancelled tickets this month (status CANCELLED & delivery date within this month)
-  const cancelledThisMonthCount = useMemo(() => {
+  const cancelledThisMonthTickets = useMemo(() => {
     return tickets.filter(t => {
       const isCancelled = t.status === 'CANCELLED';
       const isThisMonth = t.deliveryDate && t.deliveryDate.substring(0, 7) === currentMonthStr;
       return isCancelled && isThisMonth;
-    }).length;
+    });
   }, [tickets, currentMonthStr]);
+
+  const cancelledThisMonthCount = cancelledThisMonthTickets.length;
+
+  const cancelledByAdminCount = useMemo(() => cancelledThisMonthTickets.filter(t => t.cancelledBy === 'ADMIN').length, [cancelledThisMonthTickets]);
+  const cancelledByVendorCount = useMemo(() => cancelledThisMonthTickets.filter(t => t.cancelledBy === 'VENDOR' || !t.cancelledBy).length, [cancelledThisMonthTickets]);
+
+  const adminCancelPercent = cancelledThisMonthCount > 0 ? (cancelledByAdminCount / cancelledThisMonthCount) * 100 : 0;
+  const vendorCancelPercent = cancelledThisMonthCount > 0 ? (cancelledByVendorCount / cancelledThisMonthCount) * 100 : 0;
 
   // total tickets this month (any status & delivery date within this month)
   const totalThisMonthCount = useMemo(() => {
@@ -267,7 +287,7 @@ export default function AdminPortal({
   const handleForceCancel = (ticketId: string, slotCode: string) => {
     const cMsg = `PERINGATAN ADMIN!\n\nApakah Anda yakin ingin MEMBATALKAN SECARA PAKSA tiket pengiriman "${ticketId}"?\n\nTindakan ini akan membebaskan kembali slot dock "${slotCode}" ke publik agar dapat dipesan oleh vendor logistik lain.`;
     if (confirm(cMsg)) {
-      onCancelTicket(ticketId);
+      onCancelTicket(ticketId, 'ADMIN');
     }
   };
 
@@ -514,7 +534,7 @@ export default function AdminPortal({
               />
             </div>
             <div className="text-[10px] text-slate-500 mt-2 font-semibold flex justify-between">
-              <span>{t('Terisi:', 'Occupied:')} {activeTodayCount} {t('Slot', 'Slots')}</span>
+              <span>{t('Terisi:', 'Occupied:')} {physicalSlotsOccupied} {t('Slot', 'Slots')}</span>
               <span>{t('Kapasitas Efektif:', 'Effective Capacity:')} 40 {t('Slot', 'Slots')}</span>
             </div>
           </div>
@@ -530,7 +550,7 @@ export default function AdminPortal({
               </div>
             </div>
             <p className="text-3xl font-black text-slate-900 mt-2.5 font-mono tracking-tight">
-              {activeTodayCount} <span className="text-xs text-slate-400 font-normal">{t('tiket aktif', 'active tickets')}</span>
+              {activeTicketsToday} <span className="text-xs text-slate-400 font-normal">{t('tiket aktif', 'active tickets')}</span>
             </p>
           </div>
           <div className="mt-3 pt-3 border-t border-slate-100 space-y-1.5">
@@ -554,9 +574,31 @@ export default function AdminPortal({
                 <XCircle className="w-3.5 h-3.5" />
               </div>
             </div>
-            <p className="text-3xl font-black text-rose-600 mt-2.5 font-mono tracking-tight">
-              {cancelledThisMonthCount} <span className="text-xs text-slate-400 font-normal">{t('tiket', 'tickets')}</span>
-            </p>
+            
+            <div className="flex items-center justify-between mt-2.5">
+              <p className="text-3xl font-black text-rose-600 font-mono tracking-tight">
+                {cancelledThisMonthCount} <span className="text-xs text-slate-400 font-normal">{t('tiket', 'tickets')}</span>
+              </p>
+              
+              {/* Pie Chart Mini */}
+              {cancelledThisMonthCount > 0 && (
+                <div className="flex items-center gap-2">
+                  <div 
+                    className="w-8 h-8 rounded-full shadow-sm border border-slate-200"
+                    style={{ 
+                      background: `conic-gradient(
+                        #f43f5e 0% ${adminCancelPercent}%, 
+                        #f59e0b ${adminCancelPercent}% 100%
+                      )` 
+                    }}
+                  />
+                  <div className="text-[8px] font-bold text-slate-500 flex flex-col gap-0.5 leading-none">
+                    <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 bg-rose-500 rounded-full"></span> Admin</span>
+                    <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 bg-amber-500 rounded-full"></span> Vendor</span>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
           <div className="mt-3 pt-3 border-t border-slate-100">
             <div className="flex items-center justify-between text-[10px] text-slate-500 font-bold mb-1">
@@ -585,7 +627,7 @@ export default function AdminPortal({
           <h3 className="font-bold text-sm text-slate-900 uppercase tracking-wide">
             {t('Live Session Layout', 'Visual Layout Sesi Hari Ini')}
           </h3>
-          <span className="text-[10px] text-indigo-600 font-bold tracking-wide uppercase px-2 py-0.5 bg-indigo-50 rounded">
+          <span className="text-[10px] text-orange-600 font-bold tracking-wide uppercase px-2 py-0.5 bg-orange-50 rounded">
             Live
           </span>
         </div>
@@ -601,14 +643,12 @@ export default function AdminPortal({
             const isSessFull = load.availQty <= 0 || load.availItem <= 0 || load.availKoli <= 0 || load.availPo <= 0;
             const occupiedCount = load.occupiedSlots.length;
             
-
-            
             return (
               <div key={sess.key} className="bg-slate-50 p-2.5 rounded-xl border border-slate-200/60">
                 <div className="flex justify-between items-center mb-1.5">
                   <span className="text-[11px] text-slate-800 font-bold">{sess.label.split(' ')[0]} {sess.label.substring(sess.label.indexOf('('))}</span>
                   <span className={`text-[9px] font-mono font-extrabold px-1.5 py-0.2 rounded ${
-                    isSessFull ? 'bg-rose-100 text-rose-800' : 'bg-indigo-100 text-indigo-800'
+                    isSessFull ? 'bg-rose-100 text-rose-800' : 'bg-orange-100 text-orange-800'
                   }`}>
                     {occupiedCount}/10 {t('Slots Taken', 'Slot Terisi')}
                   </span>
@@ -617,9 +657,12 @@ export default function AdminPortal({
                 <div className="grid grid-cols-5 sm:grid-cols-10 gap-1">
                   {ParkingSlots.map(sl => {
                     // Check actual tickets to see if physically occupied
-                    const physicallyOccupied = tickets.filter(
-                      tk => tk.deliveryDate === currentDateStrStr && tk.status === 'ACTIVE'
-                    ).flatMap(tk => tk.bookedSlots ? tk.bookedSlots.filter(s => s.session === sess.key).map(s => s.slotCode) : (tk.session === sess.key ? [tk.slotCode] : [])).includes(sl);
+                    const occupyingTicket = tickets.find(
+                      tk => tk.deliveryDate === currentDateStrStr && tk.status === 'ACTIVE' && 
+                      (tk.bookedSlots ? tk.bookedSlots.some(s => s.session === sess.key && s.slotCode === sl) : (tk.session === sess.key && tk.slotCode === sl))
+                    );
+                    
+                    const physicallyOccupied = !!occupyingTicket;
                     
                     const override = slotOverrides.find(o => o.date === currentDateStrStr && o.session === sess.key && o.slotCode === sl);
                     const isManualBlocked = override?.status === 'BLOCKED';
@@ -630,10 +673,10 @@ export default function AdminPortal({
                     let titleText = t('Available', 'Slot Kosong');
                     
                     if (physicallyOccupied) {
-                      styleClass = 'bg-rose-100 text-rose-700 border border-rose-200 cursor-not-allowed';
+                      styleClass = 'bg-orange-500 text-white border-orange-600 shadow-md cursor-pointer hover:bg-orange-600 font-bold';
                       titleText = t('Occupied by Vendor', 'Diisi oleh Vendor');
                     } else if (isManualBlocked) {
-                      styleClass = 'bg-slate-200 text-slate-600 border-2 border-dashed border-slate-400 cursor-pointer';
+                      styleClass = 'bg-slate-200 text-slate-600 border-2 border-dashed border-slate-400 cursor-pointer opacity-75';
                       titleText = t('Manually Blocked', 'Diblokir Manual');
                     } else if (isForceUnblocked) {
                       styleClass = 'bg-emerald-50 text-emerald-700 border-2 border-dashed border-emerald-400 cursor-pointer shadow-inner';
@@ -642,9 +685,12 @@ export default function AdminPortal({
                       styleClass = 'bg-slate-100 text-slate-400 border border-slate-200 opacity-60 cursor-pointer';
                       titleText = t('Auto-Blocked (Session Full)', 'Blokir Otomatis (Sesi Penuh)');
                     }
-                    
+
                     const handleSlotClick = () => {
-                      if (physicallyOccupied) return; // cannot override a slot that has a real ticket
+                      if (physicallyOccupied) {
+                        setSelectedLiveSlotTicket(occupyingTicket);
+                        return;
+                      }
                       
                       const action = window.prompt(
                         `Slot ${sl} Sesi ${sess.label.split(' ')[0]}.\n` +
@@ -664,16 +710,16 @@ export default function AdminPortal({
                       } else if (actStr === 'RESET') {
                         onRemoveOverride?.(currentDateStrStr, sess.key, sl);
                       } else {
-                        alert('Perintah tidak valid. Gunakan BLOCK, UNBLOCK, atau RESET.');
+                        alert(t('Input tidak dikenali.', 'Unrecognized input.'));
                       }
                     };
 
                     return (
                       <div
-                        key={sl}
+                        key={`${sess.key}-${sl}`}
+                        title={titleText}
                         onClick={handleSlotClick}
-                        className={`py-1 text-center text-[10px] font-mono font-bold rounded transition-all ${styleClass}`}
-                        title={titleText as string}
+                        className={`flex items-center justify-center p-2 rounded-lg text-[10px] font-medium transition-all duration-300 ${styleClass}`}
                       >
                         {sl}
                       </div>
@@ -702,7 +748,7 @@ export default function AdminPortal({
                 placeholder={t('Cari Agen, Vendor, PIC, Slot (contoh: A05)...', 'Search Agent, Vendor, PIC, Slot (e.g., A05)...')}
                 value={adminSearch}
                 onChange={(e) => setAdminSearch(e.target.value)}
-                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 pl-9 text-xs focus:bg-white focus:ring-1 focus:ring-indigo-500 focus:outline-none text-slate-800"
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 pl-9 text-xs focus:bg-white focus:ring-1 focus:ring-orange-500 focus:outline-none text-slate-800"
               />
             </div>
 
@@ -810,7 +856,7 @@ export default function AdminPortal({
                       <td className="px-4.5 py-3.5 text-center">
                         <span className={`font-mono font-black text-[11px] px-2.5 py-1 rounded inline-block ${
                           t.status === 'ACTIVE' 
-                            ? 'bg-indigo-600 text-white shadow-sm' 
+                            ? 'bg-orange-600 text-white shadow-sm' 
                             : t.status === 'COMPLETED'
                               ? 'bg-blue-600 text-white shadow-sm'
                               : 'bg-slate-200 text-slate-500'
@@ -832,12 +878,12 @@ export default function AdminPortal({
                               type="text"
                               value={editingPicName}
                               onChange={(e) => setEditingPicName(e.target.value)}
-                              className="bg-white border border-indigo-400 rounded px-2 py-1 text-slate-800 font-sans focus:outline-none text-[11px] w-full shadow-sm"
+                              className="bg-white border border-orange-400 rounded px-2 py-1 text-slate-800 font-sans focus:outline-none text-[11px] w-full shadow-sm"
                             />
                             <button
                               id={`btn-save-edit-pic-${t.id}`}
                               onClick={() => savePicChange(t.id)}
-                              className="bg-indigo-600 hover:bg-indigo-500 text-white font-bold p-1 rounded transition text-[10px]"
+                              className="bg-orange-600 hover:bg-orange-500 text-white font-bold p-1 rounded transition text-[10px]"
                             >
                               Simpan
                             </button>
@@ -857,7 +903,7 @@ export default function AdminPortal({
                               <button
                                 id={`btn-trigger-edit-pic-${t.id}`}
                                 onClick={() => startEditingPic(t)}
-                                className="text-indigo-600 hover:text-indigo-800 opacity-80 hover:opacity-100 transition p-0.5 cursor-pointer"
+                                className="text-orange-600 hover:text-orange-800 opacity-80 hover:opacity-100 transition p-0.5 cursor-pointer"
                                 title="Edit Nama PIC"
                               >
                                 <Edit3 className="w-3.5 h-3.5 inline" />
@@ -887,13 +933,13 @@ export default function AdminPortal({
                               rows={2}
                               value={editingRemarkText}
                               onChange={(e) => setEditingRemarkText(e.target.value)}
-                              className="bg-white border border-indigo-400 rounded px-2 py-1 text-slate-800 focus:outline-none text-[10px] w-full resize-none shadow-sm"
+                              className="bg-white border border-orange-400 rounded px-2 py-1 text-slate-800 focus:outline-none text-[10px] w-full resize-none shadow-sm"
                               placeholder="Tambah catatan..."
                             />
                             <div className="flex items-center gap-1">
                               <button
                                 onClick={() => saveRemarkChange(t.id)}
-                                className="bg-indigo-600 hover:bg-indigo-500 text-white font-bold px-2 py-0.5 rounded transition text-[9px]"
+                                className="bg-orange-600 hover:bg-orange-500 text-white font-bold px-2 py-0.5 rounded transition text-[9px]"
                               >
                                 Simpan
                               </button>
@@ -918,7 +964,7 @@ export default function AdminPortal({
                             )}
                             <button
                               onClick={() => startEditingRemark(t)}
-                              className="absolute -right-2 -top-2 opacity-0 group-hover:opacity-100 transition text-indigo-600 hover:text-indigo-800 bg-white shadow-sm border border-slate-100 rounded-full p-1"
+                              className="absolute -right-2 -top-2 opacity-0 group-hover:opacity-100 transition text-orange-600 hover:text-orange-800 bg-white shadow-sm border border-slate-100 rounded-full p-1"
                               title="Edit Catatan"
                             >
                               <Edit3 className="w-3 h-3" />
@@ -982,6 +1028,83 @@ export default function AdminPortal({
         )}
       </div>
 
+      {/* Live Slot Occupant Detail Modal */}
+      {selectedLiveSlotTicket && (
+        <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in duration-200">
+            <div className="bg-orange-600 px-5 py-4 flex items-center justify-between">
+              <h3 className="text-white font-bold tracking-wide">
+                {t('Slot Details', 'Detail Slot Terisi')}
+              </h3>
+              <button 
+                onClick={() => setSelectedLiveSlotTicket(null)}
+                className="text-orange-200 hover:text-white transition"
+              >
+                <XCircle className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-5 space-y-4">
+              <div>
+                <p className="text-[10px] text-slate-500 font-bold uppercase">{t('Vendor / Agency', 'Vendor / Agensi')}</p>
+                <p className="font-bold text-slate-900">{selectedLiveSlotTicket.vendorName}</p>
+                <p className="text-xs text-slate-600">{selectedLiveSlotTicket.picName} ({selectedLiveSlotTicket.email})</p>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3 bg-slate-50 p-3 rounded-xl border border-slate-100">
+                <div>
+                  <p className="text-[10px] text-slate-500 font-bold uppercase">PO</p>
+                  <p className="font-bold text-orange-700">{selectedLiveSlotTicket.poAmount}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] text-slate-500 font-bold uppercase">Koli</p>
+                  <p className="font-bold text-orange-700">{selectedLiveSlotTicket.koliAmount}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] text-slate-500 font-bold uppercase">Item</p>
+                  <p className="font-bold text-orange-700">{selectedLiveSlotTicket.itemAmount}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] text-slate-500 font-bold uppercase">Quantity</p>
+                  <p className="font-bold text-orange-700">{selectedLiveSlotTicket.quantityAmount}</p>
+                </div>
+              </div>
+
+              {selectedLiveSlotTicket.goodsDescription && (
+                <div className="bg-amber-50 p-3 rounded-xl border border-amber-100">
+                  <p className="text-[10px] text-amber-700 font-bold uppercase flex items-center gap-1">
+                    <MessageSquare className="w-3 h-3" />
+                    Catatan Barang
+                  </p>
+                  <p className="text-sm font-medium text-amber-900 mt-1">
+                    {selectedLiveSlotTicket.goodsDescription}
+                  </p>
+                </div>
+              )}
+
+              {selectedLiveSlotTicket.adminRemark && (
+                <div className="bg-slate-100 p-3 rounded-xl border border-slate-200">
+                  <p className="text-[10px] text-slate-600 font-bold uppercase flex items-center gap-1">
+                    <PenLine className="w-3 h-3" />
+                    Catatan Admin
+                  </p>
+                  <p className="text-sm font-medium text-slate-800 mt-1">
+                    {selectedLiveSlotTicket.adminRemark}
+                  </p>
+                </div>
+              )}
+            </div>
+            <div className="px-5 py-4 bg-slate-50 border-t border-slate-100 flex justify-end">
+              <button 
+                onClick={() => setSelectedLiveSlotTicket(null)}
+                className="px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white font-bold rounded-lg transition text-sm"
+              >
+                {t('Tutup', 'Close')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
+
