@@ -58,9 +58,6 @@ export default function AdminPortal({
 
   // Editing PIC States
   const [editingTicketId, setEditingTicketId] = useState<string | null>(null);
-  const [editingPicName, setEditingPicName] = useState('');
-  const [editingRemarkId, setEditingRemarkId] = useState<string | null>(null);
-  const [editingRemarkText, setEditingRemarkText] = useState('');
 
   // UI States
   const [selectedLiveSlotTicket, setSelectedLiveSlotTicket] = useState<Ticket | null>(null);
