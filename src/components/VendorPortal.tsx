@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Ticket, DELIVERY_SESSIONS, ParkingSlots, DeliverySession, SlotOverride } from '../types';
 import { 
 getMinBookingDateStr, 
@@ -131,6 +131,18 @@ export default function VendorPortal({
     if (!selectedTicketId) return null;
     return tickets.find(t => t.id === selectedTicketId) || null;
   }, [selectedTicketId, tickets]);
+
+  // Scroll to detail view when selected
+  useEffect(() => {
+    if (selectedTicketId) {
+      setTimeout(() => {
+        const el = document.getElementById('vendor-ticket-detail');
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+      }, 100);
+    }
+  }, [selectedTicketId]);
 
   // Find slot occupancy on selected booking config
   const getOccupiedSlots = (date: string, sess: DeliverySession) => {

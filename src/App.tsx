@@ -12,20 +12,28 @@ import { collection, onSnapshot, doc, setDoc, deleteDoc } from 'firebase/firesto
 export default function App() {
   const { t } = useLanguage();
   // 1. Core database state initialized from Firestore
-  const [tickets, setTickets] = useState<Ticket[]>([]);
+  const [tickets, setTickets] = useState<Ticket[]>(INITIAL_TICKETS);
   const [slotOverrides, setSlotOverrides] = useState<SlotOverride[]>([]);
   const [isFirebaseLoading, setIsFirebaseLoading] = useState(true);
 
   useEffect(() => {
     // Listen to tickets
     const unsubscribeTickets = onSnapshot(collection(db, 'tickets'), (snapshot) => {
-      const fetchedTickets: Ticket[] = [];
+      // Start with our mock data so previous data isn't lost
+      const mergedTickets = [...INITIAL_TICKETS];
+      
       snapshot.forEach((doc) => {
-        fetchedTickets.push({ id: doc.id, ...doc.data() } as Ticket);
+        const ticketData = { id: doc.id, ...doc.data() } as Ticket;
+        const existingIdx = mergedTickets.findIndex(t => t.id === ticketData.id);
+        if (existingIdx >= 0) {
+          mergedTickets[existingIdx] = ticketData; // Override mock if it exists in Firebase
+        } else {
+          mergedTickets.push(ticketData);
+        }
       });
-      // sort tickets by createdAt desc or you can leave it, we sort them anyway later
-      fetchedTickets.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-      setTickets(fetchedTickets);
+      // sort tickets by createdAt desc
+      mergedTickets.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+      setTickets(mergedTickets);
     }, (error) => {
       console.error("Error fetching tickets from Firestore:", error);
     });
@@ -58,6 +66,17 @@ export default function App() {
   const [activePortal, setActivePortal] = useState<'vendor' | 'admin'>('vendor');
 
   const handleUpdateOverride = async (override: SlotOverride) => {
+    // Optimistic Update
+    setSlotOverrides(prev => {
+      const idx = prev.findIndex(o => o.date === override.date && o.session === override.session && o.slotCode === override.slotCode);
+      if (idx >= 0) {
+        const next = [...prev];
+        next[idx] = override;
+        return next;
+      }
+      return [...prev, override];
+    });
+
     try {
       // Create a unique deterministic ID for the override document
       const docId = `${override.date}_${override.session}_${override.slotCode}`;
@@ -68,6 +87,9 @@ export default function App() {
   };
 
   const handleRemoveOverride = async (date: string, session: string, slotCode: string) => {
+    // Optimistic Update
+    setSlotOverrides(prev => prev.filter(o => !(o.date === date && o.session === session && o.slotCode === slotCode)));
+
     try {
       const docId = `${date}_${session}_${slotCode}`;
       await deleteDoc(doc(db, 'slotOverrides', docId));
@@ -120,6 +142,9 @@ export default function App() {
 
   // Core Mutation: Adding a new ticket
   const handleAddTicket = async (newTicket: Ticket) => {
+    // Optimistic Update
+    setTickets(prev => [newTicket, ...prev].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
+
     try {
       await setDoc(doc(db, 'tickets', newTicket.id), newTicket);
     } catch (e) {
@@ -129,6 +154,9 @@ export default function App() {
 
   // Core Mutation: Editing a ticket (e.g. reschedule slot, editing PIC name)
   const handleUpdateTicket = async (updatedTicket: Ticket) => {
+    // Optimistic Update
+    setTickets(prev => prev.map(t => t.id === updatedTicket.id ? updatedTicket : t));
+
     try {
       await setDoc(doc(db, 'tickets', updatedTicket.id), updatedTicket, { merge: true });
     } catch (e) {
@@ -138,6 +166,9 @@ export default function App() {
 
   // Core Mutation: Canceling a ticket (changes status to CANCELLED, liberating the slot)
   const handleForceCancelTicket = async (ticketId: string, cancelledBy?: 'ADMIN' | 'VENDOR') => {
+    // Optimistic Update
+    setTickets(prev => prev.map(t => t.id === ticketId ? { ...t, status: 'CANCELLED', cancelledBy } : t));
+
     try {
       const tk = tickets.find(t => t.id === ticketId);
       if (tk) {
