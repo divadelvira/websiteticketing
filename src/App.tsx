@@ -165,14 +165,14 @@ export default function App() {
   };
 
   // Core Mutation: Canceling a ticket (changes status to CANCELLED, liberating the slot)
-  const handleForceCancelTicket = async (ticketId: string, cancelledBy?: 'ADMIN' | 'VENDOR') => {
+  const handleForceCancelTicket = async (ticketId: string, cancelledBy?: 'ADMIN' | 'VENDOR', cancelRemark?: string) => {
     // Optimistic Update
-    setTickets(prev => prev.map(t => t.id === ticketId ? { ...t, status: 'CANCELLED', cancelledBy } : t));
+    setTickets(prev => prev.map(t => t.id === ticketId ? { ...t, status: 'CANCELLED', cancelledBy, cancelRemark } : t));
 
     try {
       const tk = tickets.find(t => t.id === ticketId);
       if (tk) {
-        await setDoc(doc(db, 'tickets', ticketId), { ...tk, status: 'CANCELLED', cancelledBy }, { merge: true });
+        await setDoc(doc(db, 'tickets', ticketId), { ...tk, status: 'CANCELLED', cancelledBy, cancelRemark }, { merge: true });
       }
     } catch (e) {
       console.error("Error cancelling ticket in Firestore:", e);

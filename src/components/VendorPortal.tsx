@@ -34,7 +34,7 @@ interface VendorPortalProps {
   tickets: Ticket[];
   onAddTicket: (ticket: Ticket) => void;
   onUpdateTicket: (updated: Ticket) => void;
-  onCancelTicket: (ticketId: string, cancelledBy?: 'ADMIN' | 'VENDOR') => void;
+  onCancelTicket: (ticketId: string, cancelledBy?: 'ADMIN' | 'VENDOR', cancelRemark?: string) => void;
   simulatedTime: Date;
   slotOverrides?: SlotOverride[];
 }
@@ -522,8 +522,11 @@ export default function VendorPortal({
                             ? `Are you sure you want to cancel this Delivery Ticket Booking?\nThis action is final and slot ${slotsStr} will be released back to the public pool.` 
                             : `Apakah Anda yakin ingin membatalkan Booking Tiket Pengiriman ini?\nTindakan ini bersifat final dan slot parkir ${slotsStr} akan dikembalikan ke publik.`;
                           if (confirm(confirmMsg)) {
-                            onCancelTicket(activeDetailedTicket.id, 'VENDOR');
-                            alert(language === 'en' ? 'Ticket cancelled successfully.' : 'Tiket berhasil dibatalkan.');
+                            const reason = prompt(language === 'en' ? 'Please provide a reason for cancellation:' : 'Silakan berikan alasan pembatalan tiket ini:');
+                            if (reason !== null) {
+                              onCancelTicket(activeDetailedTicket.id, 'VENDOR', reason);
+                              alert(language === 'en' ? 'Ticket cancelled successfully.' : 'Tiket berhasil dibatalkan.');
+                            }
                           }
                         }}
                         className="bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 px-3.5 py-2 rounded-xl text-xs font-bold transition cursor-pointer"

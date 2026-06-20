@@ -67,6 +67,39 @@ export default function AdminPortal({
   const [editingRemarkId, setEditingRemarkId] = useState<string | null>(null);
   const [editingRemarkText, setEditingRemarkText] = useState('');
 
+  // Notification States
+  interface AdminNotification {
+    id: string;
+    ticketId: string;
+    vendorName: string;
+    reason: string;
+  }
+  const [notifications, setNotifications] = useState<AdminNotification[]>([]);
+  const prevTicketsRef = React.useRef<Ticket[]>(tickets);
+
+  // Watch for vendor cancellations
+  React.useEffect(() => {
+    const prevTickets = prevTicketsRef.current;
+    
+    tickets.forEach(currentTicket => {
+      const oldTicket = prevTickets.find(t => t.id === currentTicket.id);
+      if (oldTicket && oldTicket.status === 'ACTIVE' && currentTicket.status === 'CANCELLED' && currentTicket.cancelledBy === 'VENDOR') {
+        setNotifications(prev => [{
+          id: Math.random().toString(36).substring(2),
+          ticketId: currentTicket.id,
+          vendorName: currentTicket.vendorName,
+          reason: currentTicket.cancelRemark || 'Tidak ada keterangan'
+        }, ...prev]);
+      }
+    });
+
+    prevTicketsRef.current = tickets;
+  }, [tickets]);
+
+  const dismissNotification = (id: string) => {
+    setNotifications(prev => prev.filter(n => n.id !== id));
+  };
+
   // Handle Login Authentication
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
@@ -436,8 +469,31 @@ export default function AdminPortal({
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 relative">
       
+      {/* Notifications Floating Container */}
+      <div className="fixed top-20 right-4 z-[999] flex flex-col gap-3 max-w-sm w-full pointer-events-none">
+        {notifications.map(notif => (
+          <div key={notif.id} className="bg-white border-l-4 border-rose-500 p-4 rounded-xl shadow-2xl animate-in slide-in-from-right-8 fade-in duration-300 pointer-events-auto flex flex-col gap-1 ring-1 ring-slate-900/5">
+            <div className="flex justify-between items-start">
+              <div className="flex gap-2 items-center text-rose-500 mb-1">
+                <AlertTriangle className="w-4 h-4" />
+                <span className="text-[11px] font-black uppercase tracking-wider">Tiket Dibatalkan Vendor</span>
+              </div>
+              <button onClick={() => dismissNotification(notif.id)} className="text-slate-400 hover:text-slate-600 transition cursor-pointer">
+                <XCircle className="w-5 h-5" />
+              </button>
+            </div>
+            <p className="text-sm text-slate-800 font-bold">[{notif.ticketId}] {notif.vendorName}</p>
+            <div className="bg-slate-50 border border-slate-100 rounded-lg p-2.5 mt-1.5">
+              <p className="text-[11px] text-slate-600 font-mono line-clamp-3">
+                <span className="font-bold text-slate-800">Alasan:</span> {notif.reason}
+              </p>
+            </div>
+          </div>
+        ))}
+      </div>
+
       {/* Admin Dashboard header */}
       <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 bg-white p-5 rounded-3xl border border-slate-100 shadow-sm">
         <div className="flex items-center gap-3">
