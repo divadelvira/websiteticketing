@@ -1,10 +1,9 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { Ticket, DELIVERY_SESSIONS, ParkingSlots, DeliverySession, SlotOverride } from '../types';
-import { 
-getMinBookingDateStr, 
-  formatIndoDate, 
-  isRescheduleAllowed, 
-  generateTicketId,
+import {
+getMinBookingDateStr,
+  formatIndoDate,
+  isRescheduleAllowed,
   generateTicketId,
   allocateBooking,
   SESSION_LIMITS,
